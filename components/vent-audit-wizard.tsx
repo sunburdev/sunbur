@@ -10,7 +10,7 @@ import { BrandMark } from "@/components/brand-mark"
 import { VentAuditPlan } from "./vent-audit-plan"
 import { VentAuditAssistant } from "./vent-audit-assistant"
 import { auditContext, auditProjectSchema, calculateAudit, inspectSystem, migrateAuditProject, newAuditProject, newOpening, openingSize, wallLength, type AuditProject, type Opening } from "@/lib/vent-audit"
-import { foundationInputSchema, walkContour, type ContourStep } from "@/lib/vent-calculator"
+import { foundationInputSchema, migrateFoundationProjectV1, walkContour, type ContourStep } from "@/lib/vent-calculator"
 import { materialOptions } from "@/lib/site-data"
 import { ContourEditor } from "@/components/foundation-contour-editor"
 
@@ -96,8 +96,9 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
     try {
       if (file.size > 150_000) throw new Error("Слишком большой файл. Максимум 150 КБ.")
       const raw = JSON.parse((await file.text()).replace(/^\uFEFF/, ""))
-      if (raw.version === 1 && foundationInputSchema.safeParse(raw.input).success) {
-        localStorage.setItem("sunbur:vent-foundation:v1", JSON.stringify(raw)); onLegacy(); return
+      const legacy = migrateFoundationProjectV1(raw)
+      if (legacy) {
+        localStorage.setItem("sunbur:vent-foundation:v1", JSON.stringify(legacy)); onLegacy(); return
       }
       const migrated = migrateAuditProject(raw)
       if (!migrated) throw new Error("Не удалось открыть проект. Выберите файл, сохранённый этим калькулятором.")
@@ -135,7 +136,7 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
                 <NumberField label="Высота цоколя в схеме" value={project.foundation.height} min={0.3} max={2.5} onChange={v => foundation("height", v)} hint="От принятого низа цоколя до его верха. От этого же низа измеряйте высоту отверстий." />
                 <NumberField label="Толщина стен" unit="мм" value={project.foundation.thickness} min={100} max={1000} onChange={v => foundation("thickness", v)} hint="Например, 40 см = 400 мм. Пока принимаем одинаковую толщину всех стен." />
               </div>
-              {project.foundation.shape === "custom" && <div className="va-details"><strong>Контур фундамента</strong><ContourEditor contour={project.foundation.contour} onChange={updateContour} /><p className="va-plan-note">Габариты по осям: {format(project.foundation.length)} × {format(project.foundation.width)} м.</p></div>}
+              {project.foundation.shape === "custom" && <div className="va-details"><strong>Контур фундамента</strong><ContourEditor contour={project.foundation.contour} onChange={updateContour} disabled={project.openings.length > 0} /><p className="va-plan-note">Габариты по осям: {format(project.foundation.length)} × {format(project.foundation.width)} м.</p></div>}
               <details className="va-details"><summary>Есть внутренние стены под полом? <span>{project.partitions.length ? `${project.partitions.length} добавлено` : "Добавить перемычки"}</span></summary><p>Добавьте стены, которые делят подполье на отсеки. Если перемычка не достаёт до другой стены и её можно обойти сбоку, укажите её отрезок короче — с открытого края останется проход. Проёмы в самой перемычке отметим на следующем шаге.</p>
                 {project.partitions.map((part, i) => { const limit = part.axis === "x" ? project.foundation.length : project.foundation.width, edge = part.axis === "x" ? "левого" : "верхнего"
                   return <div className="va-partition" key={part.id}><strong>Перемычка {i + 1}</strong><SelectField label="Направление" value={part.axis} onChange={v => { const axis = v as "x" | "z", newLimit = Number((axis === "x" ? project.foundation.length : project.foundation.width).toFixed(2)); updatePartition(part.id, { axis, from: 0, to: newLimit }) }}><option value="x">Слева направо на плане</option><option value="z">Сверху вниз на плане</option></SelectField><NumberField label={part.axis === "x" ? "От верхней стороны плана" : "От левой стороны плана"} min={0.1} max={(part.axis === "x" ? project.foundation.width : project.foundation.length) - 0.1} value={part.position} onChange={v => updatePartition(part.id, { position: v })} /><div className="va-fields-grid"><NumberField label={`Начало отрезка от ${edge} края`} min={0} max={limit} value={part.from} onChange={v => updatePartition(part.id, { from: v })} /><NumberField label={`Конец отрезка от ${edge} края`} min={0} max={limit} value={part.to} onChange={v => updatePartition(part.id, { to: v })} hint={part.to - part.from >= limit - 0.01 ? "Во всю ширину — обхода сбоку нет." : "Короче — с открытого края останется проход в обход."} /></div><div className="va-fields-grid"><SelectField label="Материал перемычки" value={part.material} onChange={v => updatePartition(part.id, { material: v as AuditProject["partitions"][number]["material"] })}>{materialOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</SelectField><NumberField label="Толщина перемычки" unit="мм" value={part.thickness} min={100} max={1000} onChange={v => updatePartition(part.id, { thickness: v })} /></div><Button variant="ghost" onClick={() => { setUndo(project); change({ ...project, partitions: project.partitions.filter(a => a.id !== part.id) }, false, true) }}><Trash2 data-icon="inline-start" />Удалить перемычку {i + 1}</Button></div> })}

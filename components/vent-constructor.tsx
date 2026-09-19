@@ -6,7 +6,7 @@ import type { FormEvent, ReactNode } from "react"
 import { ArrowLeft, ArrowRight, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Download, FileUp, Layers3, Loader2, Plus, Printer, RotateCcw, Ruler, Send, SlidersHorizontal, Sparkles, Wind } from "lucide-react"
 import { FoundationView } from "@/components/foundation-view"
 import { BrandMark } from "@/components/brand-mark"
-import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, walkContour } from "@/lib/vent-calculator"
+import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, migrateFoundationProjectV1, walkContour } from "@/lib/vent-calculator"
 import type { ContourStep, FoundationInput } from "@/lib/vent-calculator"
 import { materialOptions } from "@/lib/site-data"
 import { ContourEditor } from "@/components/foundation-contour-editor"
@@ -61,10 +61,9 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
-        const project = JSON.parse(saved)
-        const parsed = foundationInputSchema.safeParse(project.input)
-        if (project.version === 1 && parsed.success) {
-          setInput(parsed.data)
+        const project = migrateFoundationProjectV1(JSON.parse(saved))
+        if (project) {
+          setInput(project.input)
           setSelectedId(typeof project.selectedVariantId === "string" ? project.selectedVariantId : null)
           setNotice("Восстановлен ваш последний проект")
         }
@@ -114,10 +113,9 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     if (!file) return
     try {
       if (file.size > 1_000_000) throw new Error("Файл слишком большой")
-      const data = JSON.parse((await file.text()).replace(/^\uFEFF/, ""))
-      const parsed = foundationInputSchema.safeParse(data.input)
-      if (data.version !== 1 || !parsed.success) throw new Error("Неверный формат проекта")
-      setInput(parsed.data)
+      const data = migrateFoundationProjectV1(JSON.parse((await file.text()).replace(/^\uFEFF/, "")))
+      if (!data) throw new Error("Неверный формат проекта")
+      setInput(data.input)
       setSelectedId(typeof data.selectedVariantId === "string" ? data.selectedVariantId : null)
       setSelectedWall(null); setAdvice(null)
       setNotice("Проект открыт. Расчёт обновлён по текущим расценкам.")

@@ -74,12 +74,18 @@ function contourSelfIntersects(vertices: FoundationPoint[]) {
         if (Math.abs(s1.a.x - s2.a.x) < EPSILON && overlaps1D(s1.a.z, s1.b.z, s2.a.z, s2.b.z)) return true
       } else {
         const h = horizontal1 ? s1 : s2, v = horizontal1 ? s2 : s1
-        if (v.a.x > Math.min(h.a.x, h.b.x) + EPSILON && v.a.x < Math.max(h.a.x, h.b.x) - EPSILON &&
-          h.a.z > Math.min(v.a.z, v.b.z) + EPSILON && h.a.z < Math.max(v.a.z, v.b.z) - EPSILON) return true
+        if (v.a.x >= Math.min(h.a.x, h.b.x) - EPSILON && v.a.x <= Math.max(h.a.x, h.b.x) + EPSILON &&
+          h.a.z >= Math.min(v.a.z, v.b.z) - EPSILON && h.a.z <= Math.max(v.a.z, v.b.z) + EPSILON) return true
       }
     }
   }
   return false
+}
+
+export function validateContour(steps: { length: number; turn: "left" | "right" }[]) {
+  const walk = walkContour(steps)
+  const selfIntersects = walk.closed && contourSelfIntersects(walk.vertices)
+  return { ...walk, selfIntersects, valid: walk.closed && !selfIntersects }
 }
 
 export const foundationInputSchema = z.object({
@@ -116,17 +122,30 @@ export const foundationInputSchema = z.object({
     context.addIssue({ code: "custom", path: ["wing"], message: "Для П-формы оставьте между крыльями и над перемычкой вырез не менее 0,5 м." })
   }
   if (value.shape === "custom") {
-    const walk = walkContour(value.contour)
-    if (!walk.closed) context.addIssue({ code: "custom", path: ["contour"], message: `Контур не замкнут: конец не совпадает с началом (Δx=${walk.gap.x.toFixed(2)} м, Δz=${walk.gap.z.toFixed(2)} м). Проверьте длины стен и повороты.` })
-    else if (contourSelfIntersects(walk.vertices)) context.addIssue({ code: "custom", path: ["contour"], message: "Контур самопересекается — стены заходят друг на друга. Проверьте порядок поворотов." })
+    const contour = validateContour(value.contour)
+    if (!contour.closed) context.addIssue({ code: "custom", path: ["contour"], message: `Контур не замкнут: конец не совпадает с началом (Δx=${contour.gap.x.toFixed(2)} м, Δz=${contour.gap.z.toFixed(2)} м). Проверьте длины стен и повороты.` })
+    else if (contour.selfIntersects) context.addIssue({ code: "custom", path: ["contour"], message: "Контур самопересекается — стены заходят друг на друга. Проверьте порядок поворотов." })
     else {
       const wallWidthLocal = value.thickness / 1000
-      const spanX = Math.max(...walk.vertices.map(v => v.x)) - Math.min(...walk.vertices.map(v => v.x))
-      const spanZ = Math.max(...walk.vertices.map(v => v.z)) - Math.min(...walk.vertices.map(v => v.z))
+      const spanX = Math.max(...contour.vertices.map(v => v.x)) - Math.min(...contour.vertices.map(v => v.x))
+      const spanZ = Math.max(...contour.vertices.map(v => v.z)) - Math.min(...contour.vertices.map(v => v.z))
       if (Math.min(spanX, spanZ) <= wallWidthLocal * 2) context.addIssue({ code: "custom", path: ["contour"], message: "Толщина стен не оставляет свободного подполья." })
     }
   }
 })
+
+export type FoundationProjectV1 = Record<string, unknown> & { version: 1; input: FoundationInput }
+
+/** Adds fields introduced after the original v1 format, then validates the result. */
+export function migrateFoundationProjectV1(raw: unknown): FoundationProjectV1 | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const project = raw as Record<string, unknown>
+  if (project.version !== 1 || !project.input || typeof project.input !== "object" || Array.isArray(project.input)) return null
+  const input = project.input as Record<string, unknown>
+  const candidate = "contour" in input ? input : { ...input, contour: DEFAULT_FOUNDATION.contour.map(step => ({ ...step })) }
+  const parsed = foundationInputSchema.safeParse(candidate)
+  return parsed.success ? { ...project, version: 1, input: parsed.data } : null
+}
 
 export type FoundationPoint = { x: number; z: number }
 export type FoundationWall = { id: string; label: string; start: FoundationPoint; end: FoundationPoint; internal: boolean }

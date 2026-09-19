@@ -11,7 +11,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 
-const { DEFAULT_FOUNDATION, calculateVentilation, getFoundationGeometry, foundationInputSchema, walkContour } = await import("../lib/vent-calculator.ts")
+const { DEFAULT_FOUNDATION, calculateVentilation, getFoundationGeometry, foundationInputSchema, migrateFoundationProjectV1, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
 const { calculateHolePrice } = await import("../lib/site-data.ts")
 
 test("rectangle, L and U footprints exclude cutouts and clip partitions", () => {
@@ -158,6 +158,29 @@ test("a custom contour that crosses itself is rejected even though it closes", (
   const result = foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, shape: "custom", contour: selfCrossing })
   assert.equal(result.success, false)
   assert.ok(result.error.issues.some(issue => issue.path.join(".") === "contour" && issue.message.includes("самопересекается")))
+})
+
+test("a custom contour that revisits a non-adjacent endpoint is rejected", () => {
+  const selfTouching = [
+    { id: "t1", length: 2, turn: "right" }, { id: "t2", length: 2, turn: "right" },
+    { id: "t3", length: 2, turn: "right" }, { id: "t4", length: 2, turn: "left" },
+    { id: "t5", length: 2, turn: "right" }, { id: "t6", length: 2, turn: "right" },
+    { id: "t7", length: 2, turn: "right" }, { id: "t8", length: 2, turn: "left" },
+  ]
+  const validation = validateContour(selfTouching)
+  assert.equal(validation.closed, true)
+  assert.equal(validation.selfIntersects, true)
+  assert.equal(validation.valid, false)
+  assert.equal(foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, shape: "custom", contour: selfTouching }).success, false)
+})
+
+test("version 1 projects without contours receive the established default before validation", () => {
+  const { contour, ...legacyInput } = DEFAULT_FOUNDATION
+  const migrated = migrateFoundationProjectV1({ version: 1, input: legacyInput, selectedVariantId: "d132" })
+  assert.ok(migrated)
+  assert.deepEqual(migrated.input.contour, contour)
+  assert.notEqual(migrated.input.contour, contour)
+  assert.equal(migrateFoundationProjectV1({ version: 1, input: { ...DEFAULT_FOUNDATION, contour: [] } }), null)
 })
 
 test("normative scope and excluded costs remain visible for every result", () => {
