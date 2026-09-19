@@ -198,6 +198,17 @@
 .fc-contour-templates { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .fc-contour-templates span { font-size: 10px; color: var(--vc-muted); }
 .fc-contour-templates button { padding: 6px 10px; border: 1px solid var(--vc-line); border-radius: 6px; background: #fff; font-size: 11px; font-weight: 550; color: var(--vc-orange); }
+.fc-contour-templates button:disabled { opacity: 0.4; cursor: not-allowed; }
+.fc-canvas { display: block; width: 100%; height: auto; aspect-ratio: 560 / 320; margin-bottom: 14px; background: #fbfbf9; border: 1px solid var(--vc-line); border-radius: 10px; touch-action: none; }
+.fc-canvas-shape { fill: var(--vc-soft); stroke: none; }
+.fc-canvas-wall { stroke: #4c5245; stroke-width: 4; stroke-linecap: square; }
+.fc-canvas-handle { cursor: grab; outline: none; }
+.fc-canvas-handle rect { fill: #fff; stroke: var(--vc-orange); stroke-width: 1.5; }
+.fc-canvas-handle text { font-size: 10px; font-weight: 600; fill: var(--vc-ink); text-anchor: middle; pointer-events: none; }
+.fc-canvas-handle:hover rect, .fc-canvas-handle:focus-visible rect { fill: var(--vc-orange); }
+.fc-canvas-handle:hover text, .fc-canvas-handle:focus-visible text { fill: #fff; }
+.fc-canvas-handle:active { cursor: grabbing; }
+.fc-canvas.is-disabled .fc-canvas-handle { cursor: default; opacity: 0.5; }
 .fc-contour-list { display: flex; flex-direction: column; gap: 8px; }
 .fc-contour-row { display: flex; align-items: center; gap: 8px; }
 .fc-contour-index { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--vc-line); font-size: 10px; font-weight: 600; color: var(--vc-muted); }
