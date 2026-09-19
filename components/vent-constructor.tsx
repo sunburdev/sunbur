@@ -6,14 +6,15 @@ import type { FormEvent, ReactNode } from "react"
 import { ArrowLeft, ArrowRight, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Download, FileUp, Layers3, Loader2, Plus, Printer, RotateCcw, Ruler, Send, SlidersHorizontal, Sparkles, Wind } from "lucide-react"
 import { FoundationView } from "@/components/foundation-view"
 import { BrandMark } from "@/components/brand-mark"
-import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema } from "@/lib/vent-calculator"
-import type { FoundationInput } from "@/lib/vent-calculator"
+import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, migrateFoundationProjectV1, walkContour } from "@/lib/vent-calculator"
+import type { ContourStep, FoundationInput } from "@/lib/vent-calculator"
 import { materialOptions } from "@/lib/site-data"
+import { ContourEditor } from "@/components/foundation-contour-editor"
 
 const STORAGE_KEY = "sunbur:vent-foundation:v1"
 const number = (value: number, digits = 1) => value.toLocaleString("ru-RU", { maximumFractionDigits: digits })
 const money = (value: number) => `${number(value, 0)} ₽`
-const shapeNames = { rectangle: "Прямоугольник", l: "Г-образный", u: "П-образный" }
+const shapeNames = { rectangle: "Прямоугольник", l: "Г-образный", u: "П-образный", custom: "Свой контур" }
 
 function NumericField({ label, value, onChange, min, max, step = 0.1, unit = "м" }: {
   label: string; value: number; onChange: (value: number) => void; min: number; max: number; step?: number; unit?: string
@@ -32,7 +33,8 @@ function NumericField({ label, value, onChange, min, max, step = 0.1, unit = "м
 }
 
 function ShapeIcon({ shape }: { shape: FoundationInput["shape"] }) {
-  return <svg viewBox="0 0 48 38" fill="none" aria-hidden="true"><path d={shape === "rectangle" ? "M6 5H42V33H6Z" : shape === "l" ? "M6 5H23V19H42V33H6Z" : "M6 5H16V23H32V5H42V33H6Z"} fill="currentColor" fillOpacity=".07" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
+  const path = shape === "rectangle" ? "M6 5H42V33H6Z" : shape === "l" ? "M6 5H23V19H42V33H6Z" : shape === "u" ? "M6 5H16V23H32V5H42V33H6Z" : "M6 5H18V17H30V5H42V17H30V29H42V33H6V17H18Z"
+  return <svg viewBox="0 0 48 38" fill="none" aria-hidden="true"><path d={path} fill="currentColor" fillOpacity=".07" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
 }
 
 export function VentConstructor({ children }: { children?: ReactNode }) {
@@ -59,10 +61,9 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
-        const project = JSON.parse(saved)
-        const parsed = foundationInputSchema.safeParse(project.input)
-        if (project.version === 1 && parsed.success) {
-          setInput(parsed.data)
+        const project = migrateFoundationProjectV1(JSON.parse(saved))
+        if (project) {
+          setInput(project.input)
           setSelectedId(typeof project.selectedVariantId === "string" ? project.selectedVariantId : null)
           setNotice("Восстановлен ваш последний проект")
         }
@@ -82,6 +83,22 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     if (key === "shape" || key === "partitions") setSelectedWall(null)
   }
 
+  function selectShape(shape: FoundationInput["shape"]) {
+    if (shape === "custom" && input.shape !== "custom") {
+      const { length, width } = input
+      update("shape", shape)
+      update("contour", [{ id: "c1", length, turn: "right" }, { id: "c2", length: width, turn: "right" }, { id: "c3", length, turn: "right" }, { id: "c4", length: width, turn: "right" }])
+    } else update("shape", shape)
+  }
+
+  function updateContour(next: ContourStep[]) {
+    const walk = walkContour(next)
+    const xs = walk.vertices.map((v) => v.x), zs = walk.vertices.map((v) => v.z)
+    const length = Math.max(...xs) - Math.min(...xs), width = Math.max(...zs) - Math.min(...zs)
+    setInput((previous) => ({ ...previous, contour: next,
+      length: length > 0 ? Number(length.toFixed(2)) : previous.length, width: width > 0 ? Number(width.toFixed(2)) : previous.width }))
+  }
+
   function downloadProject() {
     if (!result || !variant) return
     const blob = new Blob([JSON.stringify({ version: 1, input, selectedVariantId: variant.id, calculation: result, note: "Предварительная схема. Координаты по осям стен; требуется проверка конструктора." }, null, 2)], { type: "application/json" })
@@ -96,10 +113,9 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     if (!file) return
     try {
       if (file.size > 1_000_000) throw new Error("Файл слишком большой")
-      const data = JSON.parse((await file.text()).replace(/^\uFEFF/, ""))
-      const parsed = foundationInputSchema.safeParse(data.input)
-      if (data.version !== 1 || !parsed.success) throw new Error("Неверный формат проекта")
-      setInput(parsed.data)
+      const data = migrateFoundationProjectV1(JSON.parse((await file.text()).replace(/^\uFEFF/, "")))
+      if (!data) throw new Error("Неверный формат проекта")
+      setInput(data.input)
       setSelectedId(typeof data.selectedVariantId === "string" ? data.selectedVariantId : null)
       setSelectedWall(null); setAdvice(null)
       setNotice("Проект открыт. Расчёт обновлён по текущим расценкам.")
@@ -150,14 +166,15 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
         <aside className="vc-controls vc-panel vc-no-print" aria-label="Параметры фундамента">
           <div className="vc-panel-title"><h2><SlidersHorizontal size={16} /> Ваш фундамент</h2><button className="vc-icon-button" title="Сбросить параметры" aria-label="Сбросить параметры" onClick={() => { setInput(DEFAULT_FOUNDATION); setSelectedId(null); setSelectedWall(null); setAdvice(null); setNotice("Восстановлены исходные параметры") }}><RotateCcw size={15} /></button></div>
           <section className="vc-control-section"><h3>Форма в плане</h3><div className="vc-shapes">
-            {(Object.keys(shapeNames) as FoundationInput["shape"][]).map((shape) => <button key={shape} aria-pressed={input.shape === shape} onClick={() => update("shape", shape)} className={input.shape === shape ? "is-active" : ""}><ShapeIcon shape={shape} /><span>{shapeNames[shape]}</span></button>)}
+            {(Object.keys(shapeNames) as FoundationInput["shape"][]).map((shape) => <button key={shape} aria-pressed={input.shape === shape} onClick={() => selectShape(shape)} className={input.shape === shape ? "is-active" : ""}><ShapeIcon shape={shape} /><span>{shapeNames[shape]}</span></button>)}
           </div></section>
           <section className="vc-control-section"><h3><Ruler size={15} /> Размеры по осям стен</h3><div className="vc-field-grid">
-            <NumericField label="Длина" value={input.length} onChange={(v) => update("length", v)} min={2} max={40} />
-            <NumericField label="Ширина" value={input.width} onChange={(v) => update("width", v)} min={2} max={40} />
+            {input.shape !== "custom" && <NumericField label="Длина" value={input.length} onChange={(v) => update("length", v)} min={2} max={40} />}
+            {input.shape !== "custom" && <NumericField label="Ширина" value={input.width} onChange={(v) => update("width", v)} min={2} max={40} />}
             <NumericField label="Высота цоколя" value={input.height} onChange={(v) => update("height", v)} min={0.3} max={2.5} />
             <NumericField label="Толщина стены" value={input.thickness} onChange={(v) => update("thickness", v)} min={100} max={1000} step={10} unit="мм" />
-          </div>{input.shape !== "rectangle" && <div className="vc-field-spaced"><NumericField label="Ширина крыла" value={input.wing} onChange={(v) => update("wing", v)} min={1} max={20} /><p className="vc-hint">Одинаковая ширина всех крыльев.</p></div>}</section>
+          </div>{(input.shape === "l" || input.shape === "u") && <div className="vc-field-spaced"><NumericField label="Ширина крыла" value={input.wing} onChange={(v) => update("wing", v)} min={1} max={20} /><p className="vc-hint">Одинаковая ширина всех крыльев.</p></div>}
+          {input.shape === "custom" && <div className="vc-field-spaced"><ContourEditor contour={input.contour} onChange={updateContour} /><p className="vc-hint">Габариты по осям: {number(input.length)} × {number(input.width)} м.</p></div>}</section>
           <section className="vc-control-section"><h3><Layers3 size={15} /> Внутренние стены</h3><div className="vc-partitions">
             {([{ id: "none", title: "Без стен", icon: "□" }, { id: "length", title: "Вдоль", icon: "⊟" }, { id: "width", title: "Поперёк", icon: "◫" }, { id: "cross", title: "Крест", icon: "⊞" }] as const).map((item) => <button key={item.id} aria-pressed={input.partitions === item.id} className={input.partitions === item.id ? "is-active" : ""} onClick={() => update("partitions", item.id)}><span aria-hidden="true">{item.icon}</span>{item.title}</button>)}
           </div><p className="vc-hint">По центру контура. Переточные отверстия считаются отдельно.</p></section>

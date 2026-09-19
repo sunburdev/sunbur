@@ -69,5 +69,5 @@ jobs:
 
       - name: Roll out new image on k3s
         run: |
-          kubectl set image deployment/sunbur sunbur=ghcr.io/kodermax/sunbur:${{ needs.build-and-push.outputs.sha }} -n sunbur
+          kubectl set image deployment/sunbur sunbur=ghcr.io/sunburdev/sunbur:${{ needs.build-and-push.outputs.sha }} -n sunbur
           kubectl rollout status deployment/sunbur -n sunbur --timeout=120s

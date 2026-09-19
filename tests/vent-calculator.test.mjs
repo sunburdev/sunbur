@@ -11,7 +11,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 
-const { DEFAULT_FOUNDATION, calculateVentilation, getFoundationGeometry, foundationInputSchema } = await import("../lib/vent-calculator.ts")
+const { DEFAULT_FOUNDATION, calculateVentilation, getFoundationGeometry, foundationInputSchema, migrateFoundationProjectV1, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
 const { calculateHolePrice } = await import("../lib/site-data.ts")
 
 test("rectangle, L and U footprints exclude cutouts and clip partitions", () => {
@@ -118,6 +118,69 @@ test("invalid inputs and collapsed concave outlines are rejected", () => {
   for (const patch of [ { length: NaN }, { areaRatio: 0 }, { grilleFreePercent: 0 }, { height: 0.4, ventHeight: 0.5 }, { shape: "u", wing: 5 }, { shape: "l", wing: 8 } ]) {
     assert.equal(foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, ...patch }).success, false)
   }
+})
+
+test("a custom rectilinear contour describes a cross footprint the built-in shapes cannot", () => {
+  // A 10x6 body with a 4x2 bump centred on the top edge and another on the bottom.
+  const cross = [
+    { id: "c1", length: 4, turn: "right" }, { id: "c2", length: 2, turn: "left" }, { id: "c3", length: 3, turn: "right" },
+    { id: "c4", length: 6, turn: "right" }, { id: "c5", length: 3, turn: "left" }, { id: "c6", length: 2, turn: "right" },
+    { id: "c7", length: 4, turn: "right" }, { id: "c8", length: 2, turn: "left" }, { id: "c9", length: 3, turn: "right" },
+    { id: "c10", length: 6, turn: "right" }, { id: "c11", length: 3, turn: "left" }, { id: "c12", length: 2, turn: "right" },
+  ]
+  const walk = walkContour(cross)
+  assert.ok(walk.closed)
+  const input = { ...DEFAULT_FOUNDATION, shape: "custom", contour: cross }
+  assert.equal(foundationInputSchema.safeParse(input).success, true)
+  const geometry = getFoundationGeometry(input)
+  assert.equal(geometry.vertices.length, 12)
+  assert.equal(geometry.area, 76)
+  assert.equal(geometry.perimeter, 40)
+  assert.equal(geometry.walls.filter(wall => wall.internal).length, 0)
+})
+
+test("a custom contour that doesn't return to its start is rejected with the actual gap", () => {
+  const openEnded = [{ id: "c1", length: 4, turn: "right" }, { id: "c2", length: 4, turn: "right" }, { id: "c3", length: 4, turn: "right" }, { id: "c4", length: 5, turn: "right" }]
+  const walk = walkContour(openEnded)
+  assert.equal(walk.closed, false)
+  assert.ok(Math.abs(walk.gap.z + 1) < 1e-9)
+  const result = foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, shape: "custom", contour: openEnded })
+  assert.equal(result.success, false)
+  assert.ok(result.error.issues.some(issue => issue.path.join(".") === "contour" && issue.message.includes("не замкнут")))
+})
+
+test("a custom contour that crosses itself is rejected even though it closes", () => {
+  const selfCrossing = [
+    { id: "r0", length: 3, turn: "right" }, { id: "r1", length: 4, turn: "right" }, { id: "r2", length: 2, turn: "right" }, { id: "r3", length: 2, turn: "right" },
+    { id: "r4", length: 1, turn: "right" }, { id: "r5", length: 3, turn: "right" }, { id: "r6", length: 2, turn: "right" }, { id: "r7", length: 5, turn: "right" },
+  ]
+  assert.ok(walkContour(selfCrossing).closed)
+  const result = foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, shape: "custom", contour: selfCrossing })
+  assert.equal(result.success, false)
+  assert.ok(result.error.issues.some(issue => issue.path.join(".") === "contour" && issue.message.includes("самопересекается")))
+})
+
+test("a custom contour that revisits a non-adjacent endpoint is rejected", () => {
+  const selfTouching = [
+    { id: "t1", length: 2, turn: "right" }, { id: "t2", length: 2, turn: "right" },
+    { id: "t3", length: 2, turn: "right" }, { id: "t4", length: 2, turn: "left" },
+    { id: "t5", length: 2, turn: "right" }, { id: "t6", length: 2, turn: "right" },
+    { id: "t7", length: 2, turn: "right" }, { id: "t8", length: 2, turn: "left" },
+  ]
+  const validation = validateContour(selfTouching)
+  assert.equal(validation.closed, true)
+  assert.equal(validation.selfIntersects, true)
+  assert.equal(validation.valid, false)
+  assert.equal(foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, shape: "custom", contour: selfTouching }).success, false)
+})
+
+test("version 1 projects without contours receive the established default before validation", () => {
+  const { contour, ...legacyInput } = DEFAULT_FOUNDATION
+  const migrated = migrateFoundationProjectV1({ version: 1, input: legacyInput, selectedVariantId: "d132" })
+  assert.ok(migrated)
+  assert.deepEqual(migrated.input.contour, contour)
+  assert.notEqual(migrated.input.contour, contour)
+  assert.equal(migrateFoundationProjectV1({ version: 1, input: { ...DEFAULT_FOUNDATION, contour: [] } }), null)
 })
 
 test("normative scope and excluded costs remain visible for every result", () => {
