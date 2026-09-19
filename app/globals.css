@@ -1,0 +1,186 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+}
+
+:root {
+  color-scheme: dark;
+  --background: oklch(0.165 0.008 265);
+  --foreground: oklch(0.96 0.004 265);
+  --card: oklch(0.205 0.009 265);
+  --card-foreground: oklch(0.96 0.004 265);
+  --popover: oklch(0.205 0.009 265);
+  --popover-foreground: oklch(0.96 0.004 265);
+  --primary: oklch(0.66 0.2 32);
+  --primary-foreground: oklch(0.14 0.01 265);
+  --secondary: oklch(0.26 0.009 265);
+  --secondary-foreground: oklch(0.96 0.004 265);
+  --muted: oklch(0.24 0.008 265);
+  --muted-foreground: oklch(0.68 0.012 265);
+  --accent: oklch(0.66 0.2 32);
+  --accent-foreground: oklch(0.14 0.01 265);
+  --destructive: oklch(0.6 0.22 25);
+  --border: oklch(0.3 0.01 265);
+  --input: oklch(0.3 0.01 265);
+  --ring: oklch(0.66 0.2 32);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+}
+
+@layer utilities {
+  /* Scroll reveal */
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition:
+      opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Technical grid background */
+  .hud-grid {
+    background-image:
+      linear-gradient(to right, oklch(0.3 0.01 265 / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.3 0.01 265 / 0.5) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 40%, transparent 100%);
+  }
+
+  .animate-spin-slow {
+    animation: spin 14s linear infinite;
+  }
+  .animate-spin-rev {
+    animation: spin 22s linear infinite reverse;
+  }
+  .animate-ring-pulse {
+    animation: ring-pulse 3s ease-out infinite;
+  }
+  .animate-marquee {
+    animation: marquee 32s linear infinite;
+  }
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  .animate-scan {
+    animation: scan 3.5s ease-in-out infinite;
+  }
+  .animate-blink {
+    animation: blink 1.4s step-end infinite;
+  }
+}
+
+@keyframes ring-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes scan {
+  0%,
+  100% {
+    transform: translateY(-42%);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(42%);
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .animate-spin-slow,
+  .animate-spin-rev,
+  .animate-ring-pulse,
+  .animate-marquee,
+  .animate-float,
+  .animate-scan,
+  .animate-blink {
+    animation: none;
+  }
+}
