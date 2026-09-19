@@ -25,11 +25,13 @@ function ContourCanvas({ contour, onChange, disabled }: { contour: ContourStep[]
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ pointerId: number; wallIndex: number; startX: number; startY: number; startContour: ContourStep[] } | null>(null)
 
+  /** Captures the pointer and records the wall and contour at drag start. */
   function handlePointerDown(event: PointerEvent<SVGGElement>, index: number) {
     if (disabled) return
     event.currentTarget.setPointerCapture(event.pointerId)
     drag.current = { pointerId: event.pointerId, wallIndex: index, startX: event.clientX, startY: event.clientY, startContour: contour }
   }
+  /** Projects pointer movement into contour coordinates and resizes the active wall. */
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
     const state = drag.current
     if (!state || event.pointerId !== state.pointerId) return
@@ -41,9 +43,11 @@ function ContourCanvas({ contour, onChange, disabled }: { contour: ContourStep[]
     const dx = (event.clientX - state.startX) * toViewBoxX / scale, dz = (event.clientY - state.startY) * toViewBoxY / scale
     onChange(dragContourWall(state.startContour, state.wallIndex, dx, dz))
   }
+  /** Clears drag state when the active pointer is released or cancelled. */
   function endDrag(event: PointerEvent<SVGSVGElement>) {
     if (drag.current?.pointerId === event.pointerId) drag.current = null
   }
+  /** Nudges the focused wall length with arrow keys, using Shift for metre steps. */
   function handleKeyDown(event: KeyboardEvent<SVGGElement>, index: number) {
     if (disabled) return
     if (event.key !== "ArrowUp" && event.key !== "ArrowRight" && event.key !== "ArrowDown" && event.key !== "ArrowLeft") return
