@@ -29,6 +29,7 @@ function mount(props) {
       hooks[slot] ??= value
       return [hooks[slot], next => { hooks[slot] = typeof next === "function" ? next(hooks[slot]) : next }]
     },
+    useRef(value) { return { current: value } },
   }
   const module = { exports: {} }
   runInThisContext(`(function(require, module, exports) { ${code}\n})`)(name => {
@@ -59,4 +60,40 @@ test("the cross template rejects an unsupported 1 m by 1 m contour", () => {
   assert.deepEqual(changes, [])
   const alert = elements(render()).find(node => node.props.role === "alert")
   assert.match(alert.props.children, /Шаблон не применён:.*Длина: от 2 до 40 м.*Ширина: от 2 до 40 м/)
+})
+
+test("wall handles expose numeric semantics and open contours end at their actual gap", () => {
+  const contour = [
+    { id: "c1", length: 4, turn: "right" }, { id: "c2", length: 3, turn: "right" },
+    { id: "c3", length: 2, turn: "right" }, { id: "c4", length: 8, turn: "right" },
+  ]
+  const props = { input: { ...calculator.DEFAULT_FOUNDATION, shape: "custom", contour }, contour, onChange() {} }
+  const canvasComponent = elements(mount(props)()).find(node => typeof node.type === "function" && node.props.contour === contour)
+  const canvas = canvasComponent.type(canvasComponent.props)
+  const canvasElements = elements(canvas)
+  const handles = canvasElements.filter(node => node.type === "g" && node.props.className === "fc-canvas-handle")
+  assert.equal(handles.length, contour.length)
+  assert.equal(handles[0].props.role, "spinbutton")
+  assert.equal(handles[0].props["aria-valuenow"], 4)
+  assert.equal(handles[0].props["aria-valuemin"], 0.3)
+  assert.equal(handles[0].props["aria-valuetext"], "4 м")
+  assert.equal(handles[0].props.tabIndex, 0)
+
+  assert.equal(canvasElements.some(node => node.type === "polygon"), false)
+  const walls = canvasElements.filter(node => node.type === "line" && node.props.className === "fc-canvas-wall")
+  const finalWall = walls.at(-1)
+  assert.equal(finalWall.props.x1, finalWall.props.x2, "the final wall must follow its vertical direction to gap")
+  assert.notEqual(finalWall.props.y1, finalWall.props.y2)
+  assert.ok(finalWall.props.y2 >= 0 && finalWall.props.y2 <= 320, "gap must be included in canvas bounds")
+
+  const disabledCanvasComponent = elements(mount({ ...props, disabled: true })()).find(node => typeof node.type === "function" && node.props.contour === contour)
+  const disabledHandle = elements(disabledCanvasComponent.type(disabledCanvasComponent.props)).find(node => node.type === "g" && node.props.className === "fc-canvas-handle")
+  assert.equal(disabledHandle.props.tabIndex, -1)
+})
+
+test("closed contours retain their fill", () => {
+  const contour = calculator.DEFAULT_FOUNDATION.contour
+  const props = { input: calculator.DEFAULT_FOUNDATION, contour, onChange() {} }
+  const canvasComponent = elements(mount(props)()).find(node => typeof node.type === "function" && node.props.contour === contour)
+  assert.ok(elements(canvasComponent.type(canvasComponent.props)).some(node => node.type === "polygon"))
 })

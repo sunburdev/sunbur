@@ -14,9 +14,10 @@ const CANVAS_WIDTH = 560, CANVAS_HEIGHT = 320, PADDING = 34
  *  dragging it (or nudging with arrow keys while focused) resizes only that one
  *  wall — the same edit the numeric field below makes, just driven by the mouse. */
 function ContourCanvas({ contour, onChange, disabled }: { contour: ContourStep[]; onChange: (next: ContourStep[]) => void; disabled: boolean }) {
-  const { vertices } = walkContour(contour)
-  const minX = Math.min(...vertices.map(v => v.x)), maxX = Math.max(...vertices.map(v => v.x))
-  const minZ = Math.min(...vertices.map(v => v.z)), maxZ = Math.max(...vertices.map(v => v.z))
+  const { vertices, gap, closed } = walkContour(contour)
+  const extent = [...vertices, gap]
+  const minX = Math.min(...extent.map(v => v.x)), maxX = Math.max(...extent.map(v => v.x))
+  const minZ = Math.min(...extent.map(v => v.z)), maxZ = Math.max(...extent.map(v => v.z))
   const spanX = Math.max(maxX - minX, 1), spanZ = Math.max(maxZ - minZ, 1)
   const scale = Math.min((CANVAS_WIDTH - PADDING * 2) / spanX, (CANVAS_HEIGHT - PADDING * 2) / spanZ)
   const originX = (CANVAS_WIDTH - spanX * scale) / 2 - minX * scale
@@ -61,15 +62,16 @@ function ContourCanvas({ contour, onChange, disabled }: { contour: ContourStep[]
   return <svg ref={svgRef} className={`fc-canvas${disabled ? " is-disabled" : ""}`} viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} role="group"
     aria-label="Схема контура. Перетащите стену мышью или выберите её и используйте стрелки, чтобы изменить её длину."
     onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
-    <polygon points={vertices.map(v => { const s = toScreen(v); return `${s.x},${s.y}` }).join(" ")} className="fc-canvas-shape" />
+    {closed && <polygon points={vertices.map(v => { const s = toScreen(v); return `${s.x},${s.y}` }).join(" ")} className="fc-canvas-shape" />}
     {contour.map((step, i) => {
-      const a = toScreen(vertices[i]), b = toScreen(vertices[(i + 1) % vertices.length])
+      const a = toScreen(vertices[i]), b = toScreen(i === contour.length - 1 ? gap : vertices[i + 1])
       return <line key={step.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="fc-canvas-wall" />
     })}
     {contour.map((step, i) => {
-      const a = toScreen(vertices[i]), b = toScreen(vertices[(i + 1) % vertices.length])
+      const a = toScreen(vertices[i]), b = toScreen(i === contour.length - 1 ? gap : vertices[i + 1])
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-      return <g key={step.id} className="fc-canvas-handle" tabIndex={disabled ? -1 : 0} role="button"
+      return <g key={step.id} className="fc-canvas-handle" tabIndex={disabled ? -1 : 0} role="spinbutton"
+        aria-valuenow={step.length} aria-valuemin={0.3} aria-valuetext={`${fmt(step.length)} м`}
         aria-label={`Стена ${i + 1}, ${fmt(step.length)} м. Перетащите или используйте стрелки, чтобы изменить длину.`}
         onPointerDown={event => handlePointerDown(event, i)} onKeyDown={event => handleKeyDown(event, i)}>
         <rect x={mid.x - 22} y={mid.y - 11} width={44} height={22} rx={6} />

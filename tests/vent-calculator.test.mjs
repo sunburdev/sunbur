@@ -168,6 +168,12 @@ test("dragging a wall handle only changes that wall, along its own direction", (
   // Shrinking is clamped to the schema's 0.3 m floor rather than going negative.
   const shrunk = dragContourWall(rect, 0, -50, 0)
   assert.equal(shrunk[0].length, 0.3)
+
+  // An open contour's last wall ends at gap, not at the starting vertex. A
+  // horizontal drag therefore cannot resize this final vertical wall.
+  const open = [{ id: "c1", length: 4, turn: "right" }, { id: "c2", length: 3, turn: "right" }, { id: "c3", length: 2, turn: "right" }, { id: "c4", length: 1, turn: "right" }]
+  assert.equal(walkContour(open).closed, false)
+  assert.equal(dragContourWall(open, 3, 2, 0)[3].length, 1)
 })
 
 test("the T and cross quick templates always close, for any bounding box", () => {
