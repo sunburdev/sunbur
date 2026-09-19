@@ -11,7 +11,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 
-const { DEFAULT_FOUNDATION, calculateVentilation, getFoundationGeometry, foundationInputSchema, migrateFoundationProjectV1, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
+const { DEFAULT_FOUNDATION, calculateVentilation, getFoundationGeometry, foundationInputSchema, migrateFoundationProjectV1, templateContour, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
 const { calculateHolePrice } = await import("../lib/site-data.ts")
 
 test("rectangle, L and U footprints exclude cutouts and clip partitions", () => {
@@ -147,6 +147,20 @@ test("a custom contour that doesn't return to its start is rejected with the act
   const result = foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, shape: "custom", contour: openEnded })
   assert.equal(result.success, false)
   assert.ok(result.error.issues.some(issue => issue.path.join(".") === "contour" && issue.message.includes("не замкнут")))
+})
+
+test("the T and cross quick templates always close, for any bounding box", () => {
+  for (const kind of ["t", "cross"]) {
+    for (const [length, width] of [[2, 2], [3, 11], [10, 8], [13.7, 22], [40, 40]]) {
+      const contour = templateContour(kind, length, width)
+      const walk = walkContour(contour)
+      assert.ok(walk.closed, `${kind} ${length}x${width} did not close: ${JSON.stringify(walk.gap)}`)
+      const input = { ...DEFAULT_FOUNDATION, shape: "custom", contour, length, width }
+      assert.equal(foundationInputSchema.safeParse(input).success, true)
+      const geometry = getFoundationGeometry(input)
+      assert.ok(geometry.area > 0 && geometry.area < length * width, "template area must be a real cutout of its bounding box")
+    }
+  }
 })
 
 test("a custom contour that crosses itself is rejected even though it closes", () => {
