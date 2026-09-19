@@ -68,10 +68,10 @@ export function Header() {
   )
 }
 
-export function FAQ() {
+export function FAQAccordion({ items }: { items: string[][] }) {
   return (
     <Accordion className="border-t border-border">
-      {faqs.map(([question, answer]) => (
+      {items.map(([question, answer]) => (
         <AccordionItem key={question} value={question} className="border-b border-border">
           <AccordionTrigger className="py-5 text-base font-semibold sm:text-lg">{question}</AccordionTrigger>
           <AccordionContent className="max-w-3xl pb-5 text-base leading-relaxed text-muted-foreground">{answer}</AccordionContent>
@@ -79,6 +79,10 @@ export function FAQ() {
       ))}
     </Accordion>
   )
+}
+
+export function FAQ() {
+  return <FAQAccordion items={faqs as unknown as string[][]} />
 }
 
 export function MobileCTA() {

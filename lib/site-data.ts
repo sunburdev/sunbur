@@ -32,6 +32,7 @@ export const navigation = [
   { label: "Услуги", href: "/#services" },
   { label: "Цены", href: "/#prices" },
   { label: "Инструменты", href: "/instrumenty" },
+  { label: "Блог", href: "/blog" },
   { label: "Наши работы", href: "/#works" },
   { label: "Районы выезда", href: "/#locations" },
   { label: "О нас", href: "/#master" },
