@@ -56,6 +56,45 @@ export function walkContour(steps: { length: number; turn: "left" | "right" }[])
   return { vertices, gap: point, closed }
 }
 
+const round = (n: number) => Number(n.toFixed(2))
+
+/** Quick-start contours for common footprints that aren't plain rectangle/L/U,
+ *  scaled to the current bounding box. Users then fine-tune individual walls.
+ *  Only the "designed" fractions are rounded; the remaining walls are the exact
+ *  algebraic remainder so the loop still closes to within floating-point precision. */
+export function templateContour(kind: "t" | "cross", length: number, width: number): ContourStep[] {
+  if (kind === "t") {
+    const barHeight = round(width / 3), stemWidth = round(length / 3)
+    const stemDrop = width - barHeight, side = (length - stemWidth) / 2
+    return [
+      { id: "tpl1", length, turn: "right" },
+      { id: "tpl2", length: barHeight, turn: "right" },
+      { id: "tpl3", length: side, turn: "left" },
+      { id: "tpl4", length: stemDrop, turn: "right" },
+      { id: "tpl5", length: stemWidth, turn: "right" },
+      { id: "tpl6", length: stemDrop, turn: "left" },
+      { id: "tpl7", length: side, turn: "right" },
+      { id: "tpl8", length: barHeight, turn: "right" },
+    ]
+  }
+  const armWidth = round(length / 2), armHeight = round(width / 3)
+  const bodyHeight = width - armHeight * 2, side = (length - armWidth) / 2
+  return [
+    { id: "tpl1", length: armWidth, turn: "right" },
+    { id: "tpl2", length: armHeight, turn: "left" },
+    { id: "tpl3", length: side, turn: "right" },
+    { id: "tpl4", length: bodyHeight, turn: "right" },
+    { id: "tpl5", length: side, turn: "left" },
+    { id: "tpl6", length: armHeight, turn: "right" },
+    { id: "tpl7", length: armWidth, turn: "right" },
+    { id: "tpl8", length: armHeight, turn: "left" },
+    { id: "tpl9", length: side, turn: "right" },
+    { id: "tpl10", length: bodyHeight, turn: "right" },
+    { id: "tpl11", length: side, turn: "left" },
+    { id: "tpl12", length: armHeight, turn: "right" },
+  ]
+}
+
 /** Rectilinear-only self-intersection check: every segment is horizontal or vertical,
  *  so a crossing is either a 1D overlap on the shared axis or a T/X crossing. */
 function contourSelfIntersects(vertices: FoundationPoint[]) {

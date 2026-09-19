@@ -1,18 +1,25 @@
 "use client"
 
 import { Plus, Trash2 } from "lucide-react"
-import { validateContour, type ContourStep } from "@/lib/vent-calculator"
+import { templateContour, validateContour, type ContourStep } from "@/lib/vent-calculator"
 
 const fmt = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 2 })
 const nextStepId = (steps: ContourStep[]) => { let n = 1; while (steps.some(s => s.id === `c${n}`)) n++; return `c${n}` }
+const templates = [{ id: "t", label: "Т-образный" }, { id: "cross", label: "Крестом" }] as const
 
 /** Rectilinear perimeter editor shared by the constructor and the audit wizard.
  *  Both pages render this inside the `.vent-studio` scope, so it only relies on
  *  the `.fc-*` classes declared once in studio.css. */
 export function ContourEditor({ contour, onChange, disabled = false }: { contour: ContourStep[]; onChange: (next: ContourStep[]) => void; disabled?: boolean }) {
   const validation = validateContour(contour)
+  const applyTemplate = (kind: "t" | "cross") => {
+    const xs = validation.vertices.map(v => v.x), zs = validation.vertices.map(v => v.z)
+    const length = Math.max(...xs) - Math.min(...xs) || 10, width = Math.max(...zs) - Math.min(...zs) || 8
+    onChange(templateContour(kind, length, width))
+  }
   return <div className="fc-contour">
     <p className="fc-contour-hint">Обходите дом по периметру, начиная от любого угла и всё время в одну сторону. После каждой стены укажите её длину и куда дальше сворачивает дом — влево или вправо от направления движения.</p>
+    <div className="fc-contour-templates"><span>Частая форма:</span>{templates.map(t => <button type="button" key={t.id} disabled={disabled} onClick={() => applyTemplate(t.id)}>{t.label}</button>)}</div>
     <div className="fc-contour-list">
       {contour.map((step, i) => <div className="fc-contour-row" key={step.id}>
         <span className="fc-contour-index">{i + 1}</span>
