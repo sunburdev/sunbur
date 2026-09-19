@@ -1,13 +1,16 @@
 import { z } from "zod"
 import { calculateHolePrice, priceRates, type MaterialKey } from "./site-data"
 
+export type ContourStep = { id: string; length: number; turn: "left" | "right" }
+
 export type FoundationInput = {
-  shape: "rectangle" | "l" | "u"
+  shape: "rectangle" | "l" | "u" | "custom"
   length: number
   width: number
   height: number
   thickness: number
   wing: number
+  contour: ContourStep[]
   partitions: "none" | "length" | "width" | "cross"
   material: MaterialKey
   grilleFreePercent: number
@@ -20,7 +23,8 @@ export type FoundationInput = {
 
 export const DEFAULT_FOUNDATION: FoundationInput = {
   shape: "rectangle", length: 10, width: 8, height: 0.8, thickness: 400,
-  wing: 3, partitions: "none", material: "concrete", grilleFreePercent: 70,
+  wing: 3, contour: [{ id: "c1", length: 10, turn: "right" }, { id: "c2", length: 8, turn: "right" }, { id: "c3", length: 10, turn: "right" }, { id: "c4", length: 8, turn: "right" }],
+  partitions: "none", material: "concrete", grilleFreePercent: 70,
   areaRatio: 400, maxSpacing: 3, cornerOffset: 0.6, ventHeight: 0.4,
   underFloor: false,
 }
@@ -30,13 +34,62 @@ const dimension = (label: string, min: number, max: number, unit: string) => {
   return z.number({ error: `${label}: введите число.` }).finite({ error: range }).min(min, { error: range }).max(max, { error: range })
 }
 
+const contourStepSchema = z.object({
+  id: z.string().min(1).max(40),
+  length: dimension("Длина стены контура", 0.3, 40, "м"),
+  turn: z.enum(["left", "right"], { error: "Выберите направление поворота." }),
+}).strict()
+
+/** Walks a rectilinear perimeter starting at (0,0) heading +x (east), turning 90°
+ *  left/right after each step. `gap` is where the walk actually ends up — (0,0)
+ *  only when the described walls close back on themselves. */
+export function walkContour(steps: { length: number; turn: "left" | "right" }[]) {
+  const vertices: FoundationPoint[] = [{ x: 0, z: 0 }]
+  let point = { x: 0, z: 0 }
+  let heading = { x: 1, z: 0 }
+  for (let i = 0; i < steps.length; i++) {
+    point = { x: point.x + heading.x * steps[i].length, z: point.z + heading.z * steps[i].length }
+    if (i < steps.length - 1) vertices.push(point)
+    heading = steps[i].turn === "right" ? { x: -heading.z, z: heading.x } : { x: heading.z, z: -heading.x }
+  }
+  const closed = Math.hypot(point.x, point.z) < 1e-6 && Math.hypot(heading.x - 1, heading.z) < 1e-6
+  return { vertices, gap: point, closed }
+}
+
+/** Rectilinear-only self-intersection check: every segment is horizontal or vertical,
+ *  so a crossing is either a 1D overlap on the shared axis or a T/X crossing. */
+function contourSelfIntersects(vertices: FoundationPoint[]) {
+  const EPSILON = 1e-6
+  const segments = vertices.map((v, i) => ({ a: v, b: vertices[(i + 1) % vertices.length] }))
+  const overlaps1D = (a0: number, a1: number, b0: number, b1: number) =>
+    Math.max(Math.min(a0, a1), Math.min(b0, b1)) < Math.min(Math.max(a0, a1), Math.max(b0, b1)) - EPSILON
+  for (let i = 0; i < segments.length; i++) {
+    for (let j = i + 1; j < segments.length; j++) {
+      if (j === i + 1 || (i === 0 && j === segments.length - 1)) continue
+      const s1 = segments[i], s2 = segments[j]
+      const horizontal1 = Math.abs(s1.a.z - s1.b.z) < EPSILON, horizontal2 = Math.abs(s2.a.z - s2.b.z) < EPSILON
+      if (horizontal1 && horizontal2) {
+        if (Math.abs(s1.a.z - s2.a.z) < EPSILON && overlaps1D(s1.a.x, s1.b.x, s2.a.x, s2.b.x)) return true
+      } else if (!horizontal1 && !horizontal2) {
+        if (Math.abs(s1.a.x - s2.a.x) < EPSILON && overlaps1D(s1.a.z, s1.b.z, s2.a.z, s2.b.z)) return true
+      } else {
+        const h = horizontal1 ? s1 : s2, v = horizontal1 ? s2 : s1
+        if (v.a.x > Math.min(h.a.x, h.b.x) + EPSILON && v.a.x < Math.max(h.a.x, h.b.x) - EPSILON &&
+          h.a.z > Math.min(v.a.z, v.b.z) + EPSILON && h.a.z < Math.max(v.a.z, v.b.z) - EPSILON) return true
+      }
+    }
+  }
+  return false
+}
+
 export const foundationInputSchema = z.object({
-  shape: z.enum(["rectangle", "l", "u"], { error: "Выберите форму фундамента." }),
+  shape: z.enum(["rectangle", "l", "u", "custom"], { error: "Выберите форму фундамента." }),
   length: dimension("Длина", 2, 40, "м"),
   width: dimension("Ширина", 2, 40, "м"),
   height: dimension("Высота цоколя", 0.3, 2.5, "м"),
   thickness: dimension("Толщина стены", 100, 1000, "мм"),
   wing: dimension("Ширина крыла", 1, 20, "м"),
+  contour: z.array(contourStepSchema).min(4, { error: "Контур должен содержать минимум 4 стены." }).max(32, { error: "Слишком много стен — не более 32." }),
   partitions: z.enum(["none", "length", "width", "cross"], { error: "Выберите расположение внутренних стен." }),
   material: z.enum(["concrete", "reinforced", "brick"], { error: "Выберите материал фундамента." }),
   grilleFreePercent: dimension("Живое сечение решётки", 10, 100, "%"),
@@ -50,10 +103,10 @@ export const foundationInputSchema = z.object({
     context.addIssue({ code: "custom", path: ["ventHeight"], message: "Центр продуха должен быть ниже верха цоколя." })
   }
   const wallWidth = value.thickness / 1000
-  if (Math.min(value.length, value.width) <= wallWidth * 2) {
+  if (value.shape !== "custom" && Math.min(value.length, value.width) <= wallWidth * 2) {
     context.addIssue({ code: "custom", path: ["thickness"], message: "Толщина стен не оставляет свободного подполья." })
   }
-  if (value.shape !== "rectangle" && value.wing <= wallWidth * 2) {
+  if ((value.shape === "l" || value.shape === "u") && value.wing <= wallWidth * 2) {
     context.addIssue({ code: "custom", path: ["wing"], message: "Ширина крыла должна быть больше двойной толщины стены." })
   }
   if (value.shape === "l" && value.wing >= Math.min(value.length, value.width) - 0.5) {
@@ -61,6 +114,17 @@ export const foundationInputSchema = z.object({
   }
   if (value.shape === "u" && (value.wing * 2 >= value.length - 0.5 || value.wing >= value.width - 0.5)) {
     context.addIssue({ code: "custom", path: ["wing"], message: "Для П-формы оставьте между крыльями и над перемычкой вырез не менее 0,5 м." })
+  }
+  if (value.shape === "custom") {
+    const walk = walkContour(value.contour)
+    if (!walk.closed) context.addIssue({ code: "custom", path: ["contour"], message: `Контур не замкнут: конец не совпадает с началом (Δx=${walk.gap.x.toFixed(2)} м, Δz=${walk.gap.z.toFixed(2)} м). Проверьте длины стен и повороты.` })
+    else if (contourSelfIntersects(walk.vertices)) context.addIssue({ code: "custom", path: ["contour"], message: "Контур самопересекается — стены заходят друг на друга. Проверьте порядок поворотов." })
+    else {
+      const wallWidthLocal = value.thickness / 1000
+      const spanX = Math.max(...walk.vertices.map(v => v.x)) - Math.min(...walk.vertices.map(v => v.x))
+      const spanZ = Math.max(...walk.vertices.map(v => v.z)) - Math.min(...walk.vertices.map(v => v.z))
+      if (Math.min(spanX, spanZ) <= wallWidthLocal * 2) context.addIssue({ code: "custom", path: ["contour"], message: "Толщина стен не оставляет свободного подполья." })
+    }
   }
 })
 
@@ -113,13 +177,23 @@ function insidePolygon(point: FoundationPoint, vertices: FoundationPoint[]) {
 /** Dimensions follow wall centre lines; area intentionally does not subtract wall footprints. */
 export function getFoundationGeometry(input: FoundationInput): FoundationGeometry {
   const value = foundationInputSchema.parse(input)
-  const { length: l, width: w, wing: g } = value
-  const coords = value.shape === "l"
-    ? [[0, 0], [l, 0], [l, g], [g, g], [g, w], [0, w]]
-    : value.shape === "u"
-      ? [[0, 0], [l, 0], [l, w], [l - g, w], [l - g, g], [g, g], [g, w], [0, w]]
-      : [[0, 0], [l, 0], [l, w], [0, w]]
-  const vertices = coords.map(([x, z]) => ({ x, z }))
+  let { length: l, width: w } = value
+  const { wing: g } = value
+  let vertices: FoundationPoint[]
+  if (value.shape === "custom") {
+    const walk = walkContour(value.contour)
+    const minX = Math.min(...walk.vertices.map(v => v.x)), minZ = Math.min(...walk.vertices.map(v => v.z))
+    vertices = walk.vertices.map(v => ({ x: v.x - minX, z: v.z - minZ }))
+    // The bounding box, not the entered length/width, drives the built-in partition preset below.
+    l = Math.max(...vertices.map(v => v.x)); w = Math.max(...vertices.map(v => v.z))
+  } else {
+    const coords = value.shape === "l"
+      ? [[0, 0], [l, 0], [l, g], [g, g], [g, w], [0, w]]
+      : value.shape === "u"
+        ? [[0, 0], [l, 0], [l, w], [l - g, w], [l - g, g], [g, g], [g, w], [0, w]]
+        : [[0, 0], [l, 0], [l, w], [0, w]]
+    vertices = coords.map(([x, z]) => ({ x, z }))
+  }
   const walls: FoundationWall[] = vertices.map((start, index) => ({
     id: `wall-${index + 1}`, label: `Стена ${index + 1}`, start,
     end: vertices[(index + 1) % vertices.length], internal: false,

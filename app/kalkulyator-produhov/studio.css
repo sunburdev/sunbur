@@ -192,6 +192,24 @@
 .vc-guide-steps p { color: #68705f; font-size: 12px; line-height: 1.8; }
 .vc-guide-links { display: flex; flex-wrap: wrap; gap: 12px 22px; margin-top: 24px; font-size: 12px; }
 .vc-guide-links a { color: #a94f2c; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Custom contour editor, shared by the constructor and the audit wizard */
+.fc-contour-hint { font-size: 11px; color: var(--vc-muted); line-height: 1.6; margin-bottom: 12px; }
+.fc-contour-list { display: flex; flex-direction: column; gap: 8px; }
+.fc-contour-row { display: flex; align-items: center; gap: 8px; }
+.fc-contour-index { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--vc-line); font-size: 10px; font-weight: 600; color: var(--vc-muted); }
+.fc-contour-length { display: flex; align-items: center; gap: 6px; border: 1px solid var(--vc-line); border-radius: 6px; padding: 6px 10px; background: #fcfcfa; flex: 1; min-width: 0; }
+.fc-contour-length input { width: 100%; border: 0; background: transparent; font-size: 12px; font-weight: 550; color: var(--vc-ink); appearance: textfield; }
+.fc-contour-length input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.fc-contour-length span { font-size: 10px; color: var(--vc-muted); flex-shrink: 0; }
+.fc-contour-row select { flex: 1; min-width: 0; height: 34px; border: 1px solid var(--vc-line); border-radius: 6px; background: #fcfcfa; padding: 0 8px; font-size: 11px; color: var(--vc-ink); }
+.fc-contour-remove { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 6px; border: 1px solid var(--vc-line); color: #a3603e; background: #fff; }
+.fc-contour-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+.fc-contour-add { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--vc-line); border-radius: 6px; background: #fff; font-size: 11px; font-weight: 550; color: var(--vc-ink); }
+.fc-contour-add:disabled { opacity: 0.4; cursor: not-allowed; }
+.fc-contour-status { margin-top: 12px; padding: 9px 12px; border-radius: 7px; font-size: 11px; line-height: 1.6; }
+.fc-contour-status.is-closed { background: #eaf3e4; color: #4d7a34; }
+.fc-contour-status.is-open { background: #fff5f0; color: #b8542e; }
 @media (max-width: 600px) { .vc-guide-steps { grid-template-columns: 1fr; gap: 15px; } .vc-guide h3 { margin-top: 18px; } }
 .vc-filtered-wall, .vc-print-origin { display: none !important; }
 

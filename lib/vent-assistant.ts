@@ -16,7 +16,12 @@ export function applyAssistantEdit(project: AuditProject, edits: AssistantEdit):
   const parsed = assistantEditSchema.parse(edits)
   const updates = parsed.updateOpenings ?? []
   if (updates.some(o => !project.openings.some(old => old.id === o.id))) throw new Error("Помощник указал неизвестный номер отверстия.")
+  // The assistant can't describe a custom contour, so it must not silently desync
+  // length/width from the contour that actually drives that shape's geometry.
+  const foundationEdits = project.foundation.shape === "custom" && parsed.foundation
+    ? (({ length, width, ...rest }) => rest)(parsed.foundation)
+    : parsed.foundation
   // Geometry changes never silently relocate measurements; the editor exposes orphaned points.
-  return auditProjectSchema.parse({ ...project, foundation: { ...project.foundation, ...parsed.foundation }, inventoryComplete: false,
+  return auditProjectSchema.parse({ ...project, foundation: { ...project.foundation, ...foundationEdits }, inventoryComplete: false,
     openings: [...project.openings.map(o => updates.find(u => u.id === o.id) ?? o), ...(parsed.addOpenings ?? [])] })
 }
