@@ -12,7 +12,7 @@ import type { BlogPost, BlogBlock } from "@/lib/blog"
 const sectionClass = "mx-auto max-w-5xl px-4 lg:px-6"
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })
+  return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
 }
 
 export function BlogHero({ post, crumbs }: { post: BlogPost; crumbs: { label: string; href?: string }[] }) {
