@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 const { calculateHomeTool, defaultToolInput, defaultRow, dewPoint, toolInputSchema } = await import("../lib/home-tools.ts")
-const { calculateHolePrice } = await import("../lib/site-data.ts")
+const { applyQuantityDiscount, calculateHolePrice } = await import("../lib/site-data.ts")
 const { toolsCatalog } = await import("../lib/tools-catalog.ts")
 
 test("all catalog tools have valid defaults and finite results", () => {
@@ -114,12 +114,16 @@ test("manufacturer hole sizes are exact, not rounded to an oversized crown", () 
   assert.equal(custom.data.selected, null)
   assert.equal(custom.data.cost, null)
 })
-test("estimate uses shared tariffs including depth and per-hole surcharges", () => {
+test("estimate uses shared tariffs including depth and per-hole surcharges, with a quantity discount on the total", () => {
   const rows = [{ ...defaultRow, quantity: 3 }, { ...defaultRow, material: "brick", depth: 600, diameter: 200, quantity: 2, atHeight: true, underFloor: true }]
   const result = calculateHomeTool({ kind: "estimate", rows })
-  const expected = rows.reduce((sum, r) => sum + r.quantity * calculateHolePrice({ diameterMm: r.diameter, material: r.material, depthMm: r.depth, atHeight: r.atHeight, underFloor: r.underFloor }), 0)
-  assert.equal(result.data.total, expected)
+  const subtotal = rows.reduce((sum, r) => sum + r.quantity * calculateHolePrice({ diameterMm: r.diameter, material: r.material, depthMm: r.depth, atHeight: r.atHeight, underFloor: r.underFloor }), 0)
+  const discount = applyQuantityDiscount(subtotal, 5)
   assert.equal(result.data.count, 5)
+  assert.equal(result.data.subtotal, subtotal)
+  assert.equal(result.data.discountPercent, discount.percent)
+  assert.equal(result.data.discountAmount, discount.discountAmount)
+  assert.equal(result.data.total, discount.total)
 })
 test("dew point matches reference values, saturation and equal-pressure comparison", () => {
   assert.ok(Math.abs(dewPoint(20, 50) - 9.26) < .05)

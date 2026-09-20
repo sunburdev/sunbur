@@ -109,6 +109,8 @@
 .vc-stats strong { font-size: clamp(20px, 2.1vw, 28px); font-weight: 550; letter-spacing: -.8px; line-height: 1.25; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .vc-stats small { font-size: 12px; letter-spacing: 0; color: #7e8476; font-weight: 400; }
 .vc-stats .vc-price { color: #c95a34; }
+.vc-discount-badge { display: inline-flex; align-items: center; margin-left: 7px; padding: 2px 7px; border-radius: 999px; background: #ecf3e2; color: #5c7a3f; font-size: 10px; font-weight: 700; letter-spacing: 0; vertical-align: middle; }
+.vc-price-original { text-decoration: line-through; color: #adb3a1; font-weight: 450; }
 .vc-estimate-note { display: flex; align-items: start; gap: 9px; padding: 16px 8px; color: #8d9385; }
 .vc-estimate-note > svg { flex-shrink: 0; margin-top: 1px; }
 .vc-estimate-note p { font-size: 11px; line-height: 1.6; max-width: 770px; }
@@ -134,6 +136,9 @@
 .vc-variant.is-selected .vc-variant-title > i { background: #df673b; border-color: #df673b; color: white; }
 .vc-variant-count { font-size: 10px; color: #8b9283; margin-top: 5px; }
 .vc-variant-price { margin-top: 21px; font-size: 19px; font-weight: 550; letter-spacing: -.4px; }
+.vc-variant-price .vc-discount-badge { font-size: 9px; padding: 1px 6px; margin-left: 5px; }
+.vc-variant-price .vc-price-original { display: block; font-size: 11px; margin-top: 2px; }
+.vc-variant-savings { margin-top: 3px; font-size: 9px; color: #5c7a3f; font-weight: 600; }
 .vc-variant-area { margin-top: 4px; font-size: 9px; color: #959b8d; }
 .vc-pricing-note { max-width: 950px; margin-top: 13px; }
 .vc-warning { padding: 12px 15px; border: 1px solid #edd9b9; border-radius: 7px; background: #fff7e9; color: #977039; font-size: 11px; margin-top: 12px; }

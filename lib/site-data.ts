@@ -97,6 +97,24 @@ export const pricingConfig = {
   hardMaterialSurchargeMultiplier: 1.2,
 }
 
+// Volume discount on the total order: more holes in one visit means less
+// setup/travel overhead per hole, so we pass part of that saving on.
+export const quantityDiscountTiers = [
+  { minQuantity: 20, percent: 15 },
+  { minQuantity: 10, percent: 10 },
+  { minQuantity: 5, percent: 5 },
+] as const
+
+export function getQuantityDiscountPercent(quantity: number) {
+  return quantityDiscountTiers.find((tier) => quantity >= tier.minQuantity)?.percent ?? 0
+}
+
+export function applyQuantityDiscount(subtotal: number, quantity: number) {
+  const percent = getQuantityDiscountPercent(quantity)
+  const discountAmount = Math.round((subtotal * percent) / 100)
+  return { percent, discountAmount, total: subtotal - discountAmount }
+}
+
 export function calculateHolePrice({
   diameterMm,
   material,

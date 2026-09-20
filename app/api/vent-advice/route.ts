@@ -87,19 +87,21 @@ const rubles = (value: number) => `${number(value, 0)} ₽`
 
 function comparison(calculation: Calculation, selected: Variant) {
   const cheapest = calculation.variants.filter((variant) => variant.feasible)
-    .sort((a, b) => a.totalPrice - b.totalPrice || a.totalCount - b.totalCount)[0]
-  return { cheapest, savings: cheapest ? Math.max(0, selected.totalPrice - cheapest.totalPrice) : 0 }
+    .sort((a, b) => a.finalPrice - b.finalPrice || a.totalCount - b.totalCount)[0]
+  return { cheapest, savings: cheapest ? Math.max(0, selected.finalPrice - cheapest.finalPrice) : 0 }
 }
+
+const discountNote = (variant: Variant) => variant.discountPercent > 0 ? ` (уже учтена скидка за количество ${variant.discountPercent}%, ${rubles(variant.discountAmount)})` : ""
 
 function deterministicAdvice(input: FoundationInput, calculation: Calculation, selected: Variant, question: string) {
   const { cheapest, savings } = comparison(calculation, selected)
   const paragraphs = [
     `Расчётное пояснение: площадь контура по осям стен ${number(calculation.geometry.area)} м². Для выбранной доли 1/${input.areaRatio} целевая свободная площадь наружных продухов — ${number(calculation.requiredArea, 4)} м².`,
-    `Вариант Ø${selected.diameterMm} мм: ${selected.externalCount} наружных + ${selected.internalCount} внутренних отверстий, всего ${selected.totalCount}. Свободная наружная площадь с учётом решётки — ${number(selected.freeArea, 4)} м². Ориентир бурения — ${rubles(selected.totalPrice)} (${rubles(selected.pricePerHole)} за отверстие).${selected.feasible ? " Вариант проходит заданные ограничения калькулятора." : " Вариант не проходит заданные ограничения; использовать эту раскладку как готовое решение нельзя."}`,
+    `Вариант Ø${selected.diameterMm} мм: ${selected.externalCount} наружных + ${selected.internalCount} внутренних отверстий, всего ${selected.totalCount}. Свободная наружная площадь с учётом решётки — ${number(selected.freeArea, 4)} м². Ориентир бурения — ${rubles(selected.finalPrice)}${discountNote(selected)} (${rubles(selected.pricePerHole)} за отверстие).${selected.feasible ? " Вариант проходит заданные ограничения калькулятора." : " Вариант не проходит заданные ограничения; использовать эту раскладку как готовое решение нельзя."}`,
     cheapest
       ? savings > 0
-        ? `Из рассчитанных вариантов дешевле Ø${cheapest.diameterMm} мм: ${cheapest.totalCount} отверстий за ${rubles(cheapest.totalPrice)}. Разница — ${rubles(savings)}. Это сравнение стоимости бурения по текущим тарифам, без стоимости решёток и дополнительных работ.`
-        : `Выбранный вариант ${selected.feasible ? "уже имеет минимальную стоимость бурения среди прошедших ограничения сценариев" : `стоит меньше допустимых сценариев, но его ограничения не выполнены; ближайший по цене допустимый — Ø${cheapest.diameterMm} мм, ${rubles(cheapest.totalPrice)}`}.`
+        ? `Из рассчитанных вариантов дешевле Ø${cheapest.diameterMm} мм: ${cheapest.totalCount} отверстий за ${rubles(cheapest.finalPrice)}${discountNote(cheapest)}. Разница — ${rubles(savings)}. Это сравнение стоимости бурения по текущим тарифам, без стоимости решёток и дополнительных работ.`
+        : `Выбранный вариант ${selected.feasible ? "уже имеет минимальную стоимость бурения среди прошедших ограничения сценариев" : `стоит меньше допустимых сценариев, но его ограничения не выполнены; ближайший по цене допустимый — Ø${cheapest.diameterMm} мм, ${rubles(cheapest.finalPrice)}`}.`
       : "Среди проверенных диаметров нет варианта, который проходит все заданные ограничения. Проверьте высоту отверстий, отступы и размеры фундамента; потребуется пересмотреть схему с проектировщиком.",
     `Допущения: свободное сечение решётки ${input.grilleFreePercent}%, шаг не более ${number(input.maxSpacing)} м, отступ от грани примыкающей стены до края отверстия ${number(input.cornerOffset)} м, центр на высоте ${number(input.ventHeight)} м от основания. Внутренние отверстия связывают отсеки и не прибавляются к наружной площади.`,
   ]
@@ -131,6 +133,9 @@ function contextForModel(input: FoundationInput, calculation: Calculation, selec
     freeAreaM2: variant.freeArea,
     pricePerHoleRub: variant.pricePerHole,
     totalPriceRub: variant.totalPrice,
+    discountPercent: variant.discountPercent,
+    discountAmountRub: variant.discountAmount,
+    finalPriceRub: variant.finalPrice,
     feasible: variant.feasible,
     warnings: variant.warnings,
   })

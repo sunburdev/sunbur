@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { calculateHolePrice, priceRates, type MaterialKey } from "./site-data"
+import { applyQuantityDiscount, calculateHolePrice, priceRates, type MaterialKey } from "./site-data"
 
 export type ContourStep = { id: string; length: number; turn: "left" | "right" }
 
@@ -209,7 +209,8 @@ export type VentPlacement = { id: string; wallId: string; x: number; z: number; 
 export type VentVariant = {
   id: string; diameterMm: number; vents: VentPlacement[]; externalCount: number;
   internalCount: number; totalCount: number; freeArea: number; coverage: number;
-  pricePerHole: number; totalPrice: number; feasible: boolean; warnings: string[];
+  pricePerHole: number; totalPrice: number; discountPercent: number; discountAmount: number; finalPrice: number;
+  feasible: boolean; warnings: string[];
 }
 
 export const CALCULATION_SOURCES = [
@@ -439,10 +440,13 @@ function calculateVariant(value: FoundationInput, geometry: FoundationGeometry, 
   const insideCount = vents.length - outsideCount
   const freeArea = outsideCount * oneFreeArea
   const pricePerHole = calculateHolePrice({ diameterMm, material: value.material, depthMm: value.thickness, atHeight: false, underFloor: value.underFloor })
+  const totalPrice = vents.length * pricePerHole
+  const discount = applyQuantityDiscount(totalPrice, vents.length)
   return {
     id: `diameter-${diameterMm}`, diameterMm, vents, externalCount: outsideCount,
     internalCount: insideCount, totalCount: vents.length, freeArea,
-    coverage: freeArea / requiredArea, pricePerHole, totalPrice: vents.length * pricePerHole,
+    coverage: freeArea / requiredArea, pricePerHole, totalPrice,
+    discountPercent: discount.percent, discountAmount: discount.discountAmount, finalPrice: discount.total,
     feasible: feasible && freeArea >= requiredArea - EPSILON, warnings: [...new Set(warnings)],
   }
 }

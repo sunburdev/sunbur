@@ -143,7 +143,16 @@ export function ToolStudio({ id }: { id: ToolId }) {
         </section>
         {result && input.kind === "diameter" && <ToolDiameterComparison input={input} result={result} onSelect={preferredDiameter => patch({ preferredDiameter })} />}
         {result && <section className="tools-summary"><h3>{result.summary}</h3><ul>{result.notes.map(note => <li key={note}>{note}</li>)}</ul></section>}
-        {result && input.kind === "estimate" && <div className="tools-table-wrap"><table><caption>Детализация сметы</caption><thead><tr><th>Позиция</th><th>Параметры</th><th>Кол-во</th><th>За одно</th><th>Сумма</th></tr></thead><tbody>{(result.data.rows as (EstimateRow & { unitPrice: number; total: number })[]).map((row, i) => <tr key={i}><td>{i + 1}</td><td>Ø{row.diameter} · {row.depth} мм · {materialOptions.find(m => m.value === row.material)?.label}{row.atHeight && " · на высоте"}{row.underFloor && " · в подполе"}</td><td>{row.quantity}</td><td>{money(row.unitPrice)}</td><td>{money(row.total)}</td></tr>)}</tbody></table></div>}
+        {result && input.kind === "estimate" && (() => {
+          const { subtotal, total, discountPercent, discountAmount } = result.data as { subtotal: number; total: number; discountPercent: number; discountAmount: number }
+          return <div className="tools-table-wrap"><table><caption>Детализация сметы</caption><thead><tr><th>Позиция</th><th>Параметры</th><th>Кол-во</th><th>За одно</th><th>Сумма</th></tr></thead><tbody>{(result.data.rows as (EstimateRow & { unitPrice: number; total: number })[]).map((row, i) => <tr key={i}><td>{i + 1}</td><td>Ø{row.diameter} · {row.depth} мм · {materialOptions.find(m => m.value === row.material)?.label}{row.atHeight && " · на высоте"}{row.underFloor && " · в подполе"}</td><td>{row.quantity}</td><td>{money(row.unitPrice)}</td><td>{money(row.total)}</td></tr>)}</tbody>
+            <tfoot>
+              {discountPercent > 0 && <tr><td colSpan={4}>Без скидки</td><td>{money(subtotal)}</td></tr>}
+              {discountPercent > 0 && <tr><td colSpan={4}>Скидка за количество ({discountPercent}%)</td><td>−{money(discountAmount)}</td></tr>}
+              <tr><td colSpan={4}><strong>Итого к оплате</strong></td><td><strong>{money(total)}</strong></td></tr>
+            </tfoot>
+          </table></div>
+        })()}
         {input.kind === "photo" && input.markers.length > 0 && <div className="tools-table-wrap"><table><caption>Задание по меткам</caption><thead><tr><th>№</th><th>Отверстие</th><th>Примечание</th></tr></thead><tbody>{input.markers.map((m: PhotoMarker, i) => <tr key={i}><td>{i + 1}</td><td>Ø{m.diameter} · {m.depth} мм · {materialOptions.find(item => item.value === m.material)?.label}</td><td>{m.note || "Уточнить на объекте"}</td></tr>)}</tbody></table></div>}
         <section className="tools-ai" aria-labelledby="tools-ai-title"><div className="tools-ai-heading"><span className="tools-ai-icon"><Sparkles size={23} /></span><div><span className="tools-eyebrow">БИТ · AI-ПОМОЩНИК SUNBUR</span><h2 id="tools-ai-title">Разберём вашу задачу</h2></div></div><p className="tools-ai-description">{id === "photo" ? "Помогу составить задание по вашим меткам и найти недостающие данные." : "Объясню результат, помогу сравнить варианты и подскажу, что уточнить до начала работ."}</p>
           <div className="tools-no-print">{configured === false && <p className="tools-ai-unavailable" role="status">AI-помощник пока не подключён. Расчёт работает; вопрос можно обсудить с мастером.</p>}
