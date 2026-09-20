@@ -52,8 +52,6 @@ export const services = [
   { title: "Электрика", description: "Технологические отверстия под кабельные трассы и вводы.", href: "/uslugi/almaznoe-burenie", icon: Cable },
 ]
 
-export const materials = ["Бетон", "Железобетон", "Кирпич", "Фундаментные блоки", "Монолит", "Перекрытия"]
-
 // Base rates in ₽ per cm of depth, by diameter and material.
 // Source of truth for both the price table and the calculator below.
 export const priceRates = [
