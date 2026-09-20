@@ -17,9 +17,9 @@ import {
   Waves,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { locations, materials, prices, pricingConfig, services, site, works } from "@/lib/site-data"
+import { locations, prices, pricingConfig, services, site, works } from "@/lib/site-data"
 import { locationSlug } from "@/lib/content"
-import { BoreReticle, Counter, Marquee, Reveal } from "@/components/animations"
+import { BoreReticle, Counter, Reveal } from "@/components/animations"
 import { BeforeAfterSlider } from "@/components/before-after"
 import { PriceCalculator } from "@/components/price-calculator"
 import { ventPage } from "@/lib/vent-page"
@@ -133,14 +133,6 @@ export function Hero() {
           <div className="absolute -bottom-3 -right-3 size-6 border-b-2 border-r-2 border-primary" aria-hidden="true" />
         </Reveal>
       </div>
-    </section>
-  )
-}
-
-export function MaterialsMarquee() {
-  return (
-    <section className="border-b border-border bg-card py-8" aria-label="Материалы">
-      <Marquee items={materials} />
     </section>
   )
 }

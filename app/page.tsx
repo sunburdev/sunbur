@@ -2,7 +2,7 @@ import { Footer } from "@/components/footer"
 import { VentCalculatorPromo } from "@/components/vent-calculator-promo"
 import { ToolsPromo } from "@/components/tools-promo"
 import { FAQ, Header, MobileCTA } from "@/components/site-interactive"
-import { BeforeAfter, Benefits, ContactCTA, Hero, LocationsGrid, MasterBlock, MaterialsMarquee, PricingTable, ProcessSteps, SectionHeading, ServiceCards, WorksGrid } from "@/components/site-sections"
+import { BeforeAfter, Benefits, ContactCTA, Hero, LocationsGrid, MasterBlock, PricingTable, ProcessSteps, SectionHeading, ServiceCards, WorksGrid } from "@/components/site-sections"
 import { faqs, localBusinessSchema } from "@/lib/site-data"
 
 export default function Page() {
@@ -13,7 +13,6 @@ export default function Page() {
       <Header />
       <main>
         <Hero />
-        <MaterialsMarquee />
         <ToolsPromo />
         <PricingTable />
         <ServiceCards />

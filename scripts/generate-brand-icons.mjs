@@ -71,7 +71,7 @@ await Promise.all([
   render(180).png().toFile(fileURLToPath(new URL("public/apple-icon.png", root))),
   render(32).png().toFile(fileURLToPath(new URL("public/icon-light-32x32.png", root))),
   render(32).png().toFile(fileURLToPath(new URL("public/icon-dark-32x32.png", root))),
-  writeFile(new URL("public/icon.svg", root), tile(192)),
+  writeFile(new URL("app/icon.svg", root), tile(192)),
   writeFile(new URL("app/favicon.ico", root), Buffer.concat([directory, ...images])),
 ])
 

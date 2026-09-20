@@ -134,20 +134,3 @@ export function BoreReticle({ className }: { className?: string }) {
     </div>
   )
 }
-
-/** Infinite marquee ticker. */
-export function Marquee({ items }: { items: string[] }) {
-  const loop = [...items, ...items]
-  return (
-    <div className="group relative flex overflow-hidden">
-      <div className="flex shrink-0 animate-marquee items-center">
-        {loop.map((item, i) => (
-          <span key={i} className="flex items-center gap-6 whitespace-nowrap px-6 text-2xl font-black tracking-tight sm:text-3xl">
-            {item}
-            <span className="text-primary">◆</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
