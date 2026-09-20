@@ -38,6 +38,7 @@ function ShapeIcon({ shape }: { shape: FoundationInput["shape"] }) {
   return <svg viewBox="0 0 48 38" fill="none" aria-hidden="true"><path d={path} fill="currentColor" fillOpacity=".07" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
 }
 
+/** Renders the foundation calculator and its automatic and manual vent layouts. */
 export function VentConstructor({ children }: { children?: ReactNode }) {
   const [input, setInput] = useState<FoundationInput>(DEFAULT_FOUNDATION)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -84,6 +85,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, input: validated.data, selectedVariantId: selectedId })) } catch { /* Storage is optional. */ }
   }, [ready, validated, selectedId])
 
+  /** Updates a foundation parameter and invalidates geometry-dependent manual edits. */
   function update<K extends keyof FoundationInput>(key: K, value: FoundationInput[K]) {
     setInput((previous) => ({ ...previous, [key]: value }))
     if (key === "shape" || key === "partitions") setSelectedWall(null)
@@ -93,6 +95,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     setManualVents(null); setManualDiameter(null); setSelectedManualId(null)
   }
 
+  /** Seeds manual editing from the currently selected automatic layout. */
   function enterManualMode() {
     if (!variant) return
     setManualVents(variant.vents.map((vent) => ({ ...vent })))
@@ -100,7 +103,11 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     setSelectedManualId(null)
     setView("plan")
   }
+
+  /** Discards manual placement state and restores the automatic layout. */
   function exitManualMode() { setManualVents(null); setManualDiameter(null); setSelectedManualId(null) }
+
+  /** Adds a manual vent at a projected offset on the requested wall. */
   function placeManualVent(wallId: string, offset: number) {
     if (!manualVents || manualVents.length >= 100) return
     const wall = result?.geometry.walls.find((w) => w.id === wallId)
@@ -110,6 +117,8 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     setManualVents([...manualVents, { id: `manual-${n}`, wallId, x: point.x, z: point.z, offset: Number(offset.toFixed(2)), internal: wall.internal }])
     setSelectedManualId(`manual-${n}`)
   }
+
+  /** Moves a manual vent and keeps its plan coordinates synchronized. */
   function moveManualVent(id: string, offset: number) {
     setManualVents((previous) => previous && previous.map((v) => {
       if (v.id !== id) return v
@@ -119,6 +128,8 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
       return { ...v, offset, x: point.x, z: point.z }
     }))
   }
+
+  /** Removes a manual vent and clears its selection. */
   function deleteManualVent(id: string) { setManualVents((previous) => previous && previous.filter((v) => v.id !== id)); setSelectedManualId(null) }
 
   function selectShape(shape: FoundationInput["shape"]) {

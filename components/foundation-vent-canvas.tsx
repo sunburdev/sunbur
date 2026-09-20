@@ -5,6 +5,7 @@ import { pointOnWall, type FoundationGeometry, type FoundationWall, type VentPla
 
 const VIEW_WIDTH = 720, VIEW_HEIGHT = 470
 
+/** Converts a client-space pointer position into foundation-plan coordinates. */
 function toWorld(svg: SVGSVGElement, clientX: number, clientY: number, left: number, top: number, scale: number) {
   const ctm = svg.getScreenCTM()
   if (!ctm) return null
@@ -12,6 +13,7 @@ function toWorld(svg: SVGSVGElement, clientX: number, clientY: number, left: num
   return { x: (local.x - left) / scale, z: (local.y - top) / scale }
 }
 
+/** Returns the clamped distance from a wall's start to a projected plan point. */
 function projectOntoWall(wall: FoundationWall, point: { x: number; z: number }) {
   const dx = wall.end.x - wall.start.x, dz = wall.end.z - wall.start.z
   const length = Math.hypot(dx, dz) || 1
@@ -34,12 +36,15 @@ export function FoundationVentCanvas({ geometry, vents, diameterMm, selectedId, 
   const radius = Math.max(8, (diameterMm / 1000) * scale / 2)
   const drag = useRef<{ pointerId: number; ventId: string; wall: FoundationWall; startOffset: number; startWorld: { x: number; z: number } } | null>(null)
 
+  /** Places a vent at the pointer's projected position on the selected wall. */
   function wallClick(event: PointerEvent<SVGGElement>, w: FoundationWall) {
     if (disabled) return
     const svg = event.currentTarget.ownerSVGElement
     const world = svg && toWorld(svg, event.clientX, event.clientY, left, top, scale)
     if (world) onPlace(w.id, projectOntoWall(w, world))
   }
+
+  /** Selects a vent and captures the initial state for a drag operation. */
   function ventPointerDown(event: PointerEvent<SVGGElement>, v: VentPlacement, w: FoundationWall) {
     onSelect(v.id)
     if (disabled) return
@@ -50,6 +55,8 @@ export function FoundationVentCanvas({ geometry, vents, diameterMm, selectedId, 
     try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* Pointer already released; move/up still gate on a matching id. */ }
     drag.current = { pointerId: event.pointerId, ventId: v.id, wall: w, startOffset: v.offset, startWorld: world }
   }
+
+  /** Moves the active vent along its wall in five-centimetre increments. */
   function pointerMove(event: PointerEvent<SVGSVGElement>) {
     const state = drag.current
     if (!state || event.pointerId !== state.pointerId) return
@@ -62,7 +69,11 @@ export function FoundationVentCanvas({ geometry, vents, diameterMm, selectedId, 
     const snapped = Math.round((state.startOffset + along) * 20) / 20
     onMove(state.ventId, Math.max(0, Math.min(len, snapped)))
   }
+
+  /** Clears drag state when the captured pointer ends or is cancelled. */
   function endDrag(event: PointerEvent<SVGSVGElement>) { if (drag.current?.pointerId === event.pointerId) drag.current = null }
+
+  /** Handles keyboard deletion and precise movement for a focused vent. */
   function ventKeyDown(event: KeyboardEvent<SVGGElement>, v: VentPlacement, w: FoundationWall) {
     if (disabled) return
     if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); onDelete(v.id); return }
