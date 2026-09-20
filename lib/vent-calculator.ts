@@ -480,25 +480,65 @@ export function calculateVentilation(input: FoundationInput) {
   return { geometry, requiredArea, variants, recommendedId: recommended?.id ?? null, notes }
 }
 
+/** Smallest distance from a wall's own end to a hole centre: the user's clearance
+ *  from the adjoining face, plus the hole radius, plus half the wall it butts into. */
+export function ventEdgeMargin(value: FoundationInput, diameterMm: number) {
+  return value.cornerOffset + diameterMm / 2000 + value.thickness / 2000
+}
+
+/** Smallest centre-to-centre distance between two holes on one wall. */
+export function ventMinPitch(diameterMm: number) {
+  return diameterMm / 1000 + MINIMUM_WEB
+}
+
+/** True when the hole clears the top and bottom of the plinth by the model's margin. */
+export function ventHeightFits(value: FoundationInput, diameterMm: number) {
+  const radius = diameterMm / 2000
+  return value.ventHeight - radius >= VERTICAL_EDGE_CLEARANCE - EPSILON
+    && value.height - value.ventHeight - radius >= VERTICAL_EDGE_CLEARANCE - EPSILON
+}
+
+export type VentViolation = "edge" | "pitch"
+
+/** Per-hole view of the same edge/pitch margins `calculateVariant` enforces when it
+ *  auto-places holes. `manualVentWarnings` phrases this map as wall-level sentences;
+ *  the plan canvas uses it directly to outline the offending holes in red. Holes with
+ *  no entry are clean — a missing key is not the same as an empty array. */
+export function ventViolations(value: FoundationInput, geometry: FoundationGeometry, vents: VentPlacement[], diameterMm: number) {
+  const margin = ventEdgeMargin(value, diameterMm)
+  const minPitch = ventMinPitch(diameterMm)
+  const found = new Map<string, VentViolation[]>()
+  const add = (id: string, kind: VentViolation) => {
+    const list = found.get(id)
+    if (!list) found.set(id, [kind])
+    else if (!list.includes(kind)) list.push(kind)
+  }
+  for (const wall of geometry.walls) {
+    const length = distance(wall.start, wall.end)
+    const onWall = vents.filter(vent => vent.wallId === wall.id).sort((a, b) => a.offset - b.offset)
+    for (const vent of onWall) {
+      if (vent.offset < margin - EPSILON || vent.offset > length - margin + EPSILON) add(vent.id, "edge")
+    }
+    for (let i = 1; i < onWall.length; i++) {
+      // Both holes of a too-tight pair are at fault; flagging only one would make the
+      // canvas look like the other is safe to leave where it is.
+      if (onWall[i].offset - onWall[i - 1].offset < minPitch - EPSILON) { add(onWall[i].id, "pitch"); add(onWall[i - 1].id, "pitch") }
+    }
+  }
+  return found
+}
+
 /** Same edge/pitch margins `calculateVariant` enforces when it auto-places holes,
  *  applied instead to a hand-edited list — so manual mode gets the same warnings. */
 export function manualVentWarnings(value: FoundationInput, geometry: FoundationGeometry, vents: VentPlacement[], diameterMm: number): string[] {
-  const radius = diameterMm / 2000
-  const margin = value.cornerOffset + radius + value.thickness / 2000
-  const minPitch = diameterMm / 1000 + MINIMUM_WEB
+  const violations = ventViolations(value, geometry, vents, diameterMm)
   const warnings: string[] = []
   for (const wall of geometry.walls) {
-    const length = distance(wall.start, wall.end)
-    const offsets = vents.filter(v => v.wallId === wall.id).map(v => v.offset).sort((a, b) => a - b)
-    if (offsets.some(offset => offset < margin - EPSILON || offset > length - margin + EPSILON)) {
-      warnings.push(`${wall.label}: отверстие расположено слишком близко к краю или примыканию.`)
-    }
-    for (let i = 1; i < offsets.length; i++) {
-      if (offsets[i] - offsets[i - 1] < minPitch - EPSILON) { warnings.push(`${wall.label}: два отверстия расположены слишком близко друг к другу.`); break }
-    }
+    const kinds = new Set(vents.filter(vent => vent.wallId === wall.id).flatMap(vent => violations.get(vent.id) ?? []))
+    if (kinds.has("edge")) warnings.push(`${wall.label}: отверстие расположено слишком близко к краю или примыканию.`)
+    if (kinds.has("pitch")) warnings.push(`${wall.label}: два отверстия расположены слишком близко друг к другу.`)
   }
-  const heightFits = value.ventHeight - radius >= VERTICAL_EDGE_CLEARANCE - EPSILON && value.height - value.ventHeight - radius >= VERTICAL_EDGE_CLEARANCE - EPSILON
-  if (!heightFits) warnings.push(`Ø${diameterMm} не помещается по высоте: нужен запас по 100 мм от края отверстия до низа и верха цоколя.`)
+  if (!ventHeightFits(value, diameterMm)) warnings.push(`Ø${diameterMm} не помещается по высоте: нужен запас по 100 мм от края отверстия до низа и верха цоколя.`)
   return [...new Set(warnings)]
 }
 
