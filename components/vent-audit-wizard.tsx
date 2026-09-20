@@ -33,6 +33,7 @@ function SelectField({ label, value, onChange, children, hint, disabled }: { lab
   return <Field><FieldLabel htmlFor={id}>{label}</FieldLabel><select id={id} value={value} onChange={e => onChange(e.target.value)} disabled={disabled} aria-describedby={hint ? `${id}-hint` : undefined}>{children}</select>{hint && <FieldDescription id={`${id}-hint`}>{hint}</FieldDescription>}</Field>
 }
 
+/** Guides users through recording and evaluating their existing foundation vents. */
 export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; onLegacy: () => void }) {
   const [project, setProject] = useState<AuditProject>(newAuditProject)
   const [ready, setReady] = useState(false), [step, setStep] = useState(0)
@@ -84,6 +85,8 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
     setNotice(`${id} добавлен. Укажите его настоящий размер и расстояние от начала стены.`)
   }
   function removeOpening(id: string) { setUndo(project); change({ ...project, openings: project.openings.filter(o => o.id !== id) }, false, true); setOpeningId(null); setNotice("Продух удалён из схемы. Можно отменить.") }
+
+  /** Adds a new opening at the selected position on a plan wall. */
   function placeOpening(targetWallId: string, offset: number) {
     setWallId(targetWallId)
     const wall = context?.geometry.walls.find(w => w.id === targetWallId)
@@ -93,6 +96,8 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
     setUndo(project); change({ ...project, openings: [...project.openings, opening] }, false, true); setOpeningId(id)
     setNotice(`${id} добавлен. Укажите его настоящий размер и решётку.`)
   }
+
+  /** Updates an opening's distance from the start of its wall. */
   function moveOpening(id: string, offset: number) { change({ ...project, openings: project.openings.map(o => o.id === id ? { ...o, offset } : o) }) }
   function navigate(n: number) { setStep(n); setAfterView(false); setTimeout(() => { heading.current?.focus(); heading.current?.scrollIntoView({ behavior: "smooth", block: "start" }) }, 0) }
   function download() {

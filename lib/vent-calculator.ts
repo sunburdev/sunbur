@@ -206,6 +206,7 @@ export type FoundationPoint = { x: number; z: number }
 export type FoundationWall = { id: string; label: string; start: FoundationPoint; end: FoundationPoint; internal: boolean }
 export type FoundationGeometry = { vertices: FoundationPoint[]; walls: FoundationWall[]; area: number; perimeter: number }
 export type VentPlacement = { id: string; wallId: string; x: number; z: number; offset: number; internal: boolean }
+/** Returns the plan coordinate at a given distance from the start of a wall. */
 export function pointOnWall(wall: FoundationWall, offset: number): FoundationPoint {
   const dx = wall.end.x - wall.start.x, dz = wall.end.z - wall.start.z
   const length = Math.hypot(dx, dz) || 1

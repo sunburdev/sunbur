@@ -16,6 +16,7 @@ function toWorld(svg: SVGSVGElement, clientX: number, clientY: number, left: num
   return { x: (local.x - left) / scale, z: (local.y - top) / scale }
 }
 
+/** Returns the clamped distance from a wall's start to a projected plan point. */
 function projectOntoWall(wall: FoundationWall, point: { x: number; z: number }) {
   const dx = wall.end.x - wall.start.x, dz = wall.end.z - wall.start.z
   const length = Math.hypot(dx, dz) || 1
@@ -23,6 +24,7 @@ function projectOntoWall(wall: FoundationWall, point: { x: number; z: number }) 
   return Math.max(0, Math.min(length, t * length))
 }
 
+/** Renders the audit plan and coordinates pointer and keyboard vent editing. */
 export function VentAuditPlan({ geometry, openings, original, selectedWall, selectedOpening, onWall, onOpening, onPlace, onMove, onDelete, cells, disabled = false }: {
   geometry: FoundationGeometry; openings: Opening[]; original: Opening[]; selectedWall: string; selectedOpening: string | null;
   onWall: (id: string) => void; onOpening: (id: string) => void;
@@ -35,12 +37,15 @@ export function VentAuditPlan({ geometry, openings, original, selectedWall, sele
   const x = (v: number) => left + v * scale, y = (v: number) => top + v * scale
   const drag = useRef<{ pointerId: number; openingId: string; wall: FoundationWall; startOffset: number; startWorld: { x: number; z: number } } | null>(null)
 
+  /** Places an opening on an editable wall or selects the wall in read-only mode. */
   function wallClick(event: PointerEvent<SVGGElement>, w: FoundationWall) {
     const svg = event.currentTarget.ownerSVGElement
     const world = svg && toWorld(svg, event.clientX, event.clientY, left, top, scale)
     if (onPlace && !disabled && world) onPlace(w.id, projectOntoWall(w, world))
     else onWall(w.id)
   }
+
+  /** Selects an opening and captures the initial state for a drag operation. */
   function openingPointerDown(event: PointerEvent<SVGGElement>, o: Opening, w: FoundationWall) {
     onWall(w.id); onOpening(o.id)
     if (!onMove || disabled) return
@@ -51,6 +56,8 @@ export function VentAuditPlan({ geometry, openings, original, selectedWall, sele
     try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* Pointer already released; the move/up handlers below still gate on a matching id. */ }
     drag.current = { pointerId: event.pointerId, openingId: o.id, wall: w, startOffset: o.offset, startWorld: world }
   }
+
+  /** Moves the active opening along its wall in five-centimetre increments. */
   function pointerMove(event: PointerEvent<SVGSVGElement>) {
     const state = drag.current
     if (!state || event.pointerId !== state.pointerId || !onMove) return
@@ -64,9 +71,13 @@ export function VentAuditPlan({ geometry, openings, original, selectedWall, sele
     const snapped = Math.round((state.startOffset + along) * 20) / 20
     onMove(state.openingId, Math.max(0, Math.min(len, snapped)))
   }
+
+  /** Clears drag state when the captured pointer ends or is cancelled. */
   function endDrag(event: PointerEvent<SVGSVGElement>) {
     if (drag.current?.pointerId === event.pointerId) drag.current = null
   }
+
+  /** Handles keyboard deletion and precise movement for a focused opening. */
   function openingKeyDown(event: KeyboardEvent<SVGGElement>, o: Opening, w: FoundationWall) {
     if (disabled) return
     if ((event.key === "Delete" || event.key === "Backspace") && onDelete) { event.preventDefault(); onDelete(o.id); return }
