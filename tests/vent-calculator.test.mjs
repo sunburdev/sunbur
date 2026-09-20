@@ -11,7 +11,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 
-const { DEFAULT_FOUNDATION, calculateVentilation, dragContourWall, getFoundationGeometry, foundationInputSchema, migrateFoundationProjectV1, templateContour, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
+const { DEFAULT_FOUNDATION, calculateVentilation, dragContourWall, getFoundationGeometry, foundationInputSchema, manualVentWarnings, migrateFoundationProjectV1, summarizeManualVents, templateContour, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
 const { calculateHolePrice } = await import("../lib/site-data.ts")
 
 test("rectangle, L and U footprints exclude cutouts and clip partitions", () => {
@@ -174,6 +174,31 @@ test("dragging a wall handle only changes that wall, along its own direction", (
   const open = [{ id: "c1", length: 4, turn: "right" }, { id: "c2", length: 3, turn: "right" }, { id: "c3", length: 2, turn: "right" }, { id: "c4", length: 1, turn: "right" }]
   assert.equal(walkContour(open).closed, false)
   assert.equal(dragContourWall(open, 3, 2, 0)[3].length, 1)
+})
+
+test("summarizeManualVents prices a hand-placed layout and flags cramped spacing", () => {
+  const geometry = getFoundationGeometry(DEFAULT_FOUNDATION)
+  const requiredArea = geometry.area / DEFAULT_FOUNDATION.areaRatio
+  const wall1 = geometry.walls.find(w => w.id === "wall-1")
+  const good = [
+    { id: "v1", wallId: wall1.id, x: 2, z: 0, offset: 2, internal: false },
+    { id: "v2", wallId: wall1.id, x: 5, z: 0, offset: 5, internal: false },
+  ]
+  const summary = summarizeManualVents(DEFAULT_FOUNDATION, geometry, requiredArea, good, 152)
+  const oneFreeArea = Math.PI * (152 / 2000) ** 2 * DEFAULT_FOUNDATION.grilleFreePercent / 100
+  assert.equal(summary.externalCount, 2)
+  assert.equal(summary.internalCount, 0)
+  assert.ok(Math.abs(summary.freeArea - 2 * oneFreeArea) < 1e-10)
+  assert.equal(summary.pricePerHole, calculateHolePrice({ diameterMm: 152, material: DEFAULT_FOUNDATION.material, depthMm: DEFAULT_FOUNDATION.thickness, atHeight: false, underFloor: false }))
+  assert.equal(summary.totalPrice, 2 * summary.pricePerHole)
+  assert.deepEqual(manualVentWarnings(DEFAULT_FOUNDATION, geometry, good, 152), [])
+  assert.equal(summary.feasible, summary.freeArea >= requiredArea)
+
+  const cramped = [...good, { id: "v3", wallId: wall1.id, x: 5.1, z: 0, offset: 5.1, internal: false }]
+  assert.ok(manualVentWarnings(DEFAULT_FOUNDATION, geometry, cramped, 152).some(w => w.includes("слишком близко друг к другу")))
+
+  const nearCorner = [{ id: "v1", wallId: wall1.id, x: 0.2, z: 0, offset: 0.2, internal: false }]
+  assert.ok(manualVentWarnings(DEFAULT_FOUNDATION, geometry, nearCorner, 152).some(w => w.includes("слишком близко к краю")))
 })
 
 test("the T and cross quick templates always close, for any bounding box", () => {

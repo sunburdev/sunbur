@@ -33,6 +33,7 @@ function SelectField({ label, value, onChange, children, hint, disabled }: { lab
   return <Field><FieldLabel htmlFor={id}>{label}</FieldLabel><select id={id} value={value} onChange={e => onChange(e.target.value)} disabled={disabled} aria-describedby={hint ? `${id}-hint` : undefined}>{children}</select>{hint && <FieldDescription id={`${id}-hint`}>{hint}</FieldDescription>}</Field>
 }
 
+/** Guides users through recording and evaluating their existing foundation vents. */
 export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; onLegacy: () => void }) {
   const [project, setProject] = useState<AuditProject>(newAuditProject)
   const [ready, setReady] = useState(false), [step, setStep] = useState(0)
@@ -84,6 +85,20 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
     setNotice(`${id} добавлен. Укажите его настоящий размер и расстояние от начала стены.`)
   }
   function removeOpening(id: string) { setUndo(project); change({ ...project, openings: project.openings.filter(o => o.id !== id) }, false, true); setOpeningId(null); setNotice("Продух удалён из схемы. Можно отменить.") }
+
+  /** Adds a new opening at the selected position on a plan wall. */
+  function placeOpening(targetWallId: string, offset: number) {
+    setWallId(targetWallId)
+    const wall = context?.geometry.walls.find(w => w.id === targetWallId)
+    if (!wall || project.openings.length >= 100) return
+    const id = nextId("П", project.openings.map(o => o.id))
+    const opening = newOpening(targetWallId, Number(offset.toFixed(2)), project.foundation.ventHeight, id)
+    setUndo(project); change({ ...project, openings: [...project.openings, opening] }, false, true); setOpeningId(id)
+    setNotice(`${id} добавлен. Укажите его настоящий размер и решётку.`)
+  }
+
+  /** Updates an opening's distance from the start of its wall. */
+  function moveOpening(id: string, offset: number) { change({ ...project, openings: project.openings.map(o => o.id === id ? { ...o, offset } : o) }) }
   function navigate(n: number) { setStep(n); setAfterView(false); setTimeout(() => { heading.current?.focus(); heading.current?.scrollIntoView({ behavior: "smooth", block: "start" }) }, 0) }
   function download() {
     if (!validated.success) return
@@ -117,7 +132,7 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
       <div className="va-layout">
         <div className="va-work">
           <section className="va-section va-no-print">
-            <div className="va-section-title"><span className="va-step-number">{step + 1}</span><div><h2 ref={heading} tabIndex={-1}>{stepNames[step]}</h2><p>{["Начнём с формы и размеров. Подполье — это пространство под полом.", "Выберите стену на схеме и добавьте отверстия, которые на ней уже есть.", "Сравните вашу систему с предложенными изменениями."][step]}</p></div></div>
+            <div className="va-section-title"><span className="va-step-number">{step + 1}</span><div><h2 ref={heading} tabIndex={-1}>{stepNames[step]}</h2><p>{["Начнём с формы и размеров. Подполье — это пространство под полом.", "Щёлкните по стене на схеме справа — там появится продух. Перетащите его на нужное место и укажите размер.", "Сравните вашу систему с предложенными изменениями."][step]}</p></div></div>
             {step === 0 && <FieldGroup>
               <SelectField label="Что находится под полом?" value={project.kind} onChange={v => change({ ...project, kind: v as AuditProject["kind"] })}><option value="crawlspace">Подполье за закрытым цоколем</option><option value="basement">Подвал — помещение под домом</option><option value="slab">Плита, подполья нет</option><option value="unknown">Пока не знаю</option></SelectField>
               {project.kind !== "crawlspace" && <p className="va-message">Этот подбор предназначен для подполья за закрытым цоколем. Расскажите помощнику о вашем доме — он подскажет, что уточнить.</p>}
@@ -145,9 +160,9 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
               <p className="va-help"><CircleHelp aria-hidden="true" />Сейчас стоят размеры для примера. Замените их на свои. Не знаете, как измерить? Спросите Бита справа или ниже.</p>
             </FieldGroup>}
             {step === 1 && <>
-              <FieldGroup><SelectField label="На какой стене добавляем продух?" value={selectedWall?.id ?? ""} onChange={v => { setWallId(v); setOpeningId(null) }}><option value="" disabled>Выберите стену</option>{context?.geometry.walls.map(w => <option key={w.id} value={w.id}>{w.label}{w.internal ? " · внутренняя" : " · наружная"} — {format(wallLength(w))} м</option>)}</SelectField></FieldGroup>
-              <div className="va-add-row"><Button onClick={() => addOpening()} disabled={!selectedWall || project.openings.length >= 100}><Plus data-icon="inline-start" />Добавить продух на этой стене</Button><span>{project.openings.length} из 100 отверстий</span></div>
-              {!project.openings.length && <p className="va-help">Пока отверстий на схеме нет. Добавьте их по одному. Если их действительно нет, отметьте это ниже и переходите к проверке.</p>}
+              <details className="va-details"><summary>Не получается щёлкнуть по схеме? Добавить точным вводом</summary><FieldGroup><SelectField label="На какой стене добавляем продух?" value={selectedWall?.id ?? ""} onChange={v => { setWallId(v); setOpeningId(null) }}><option value="" disabled>Выберите стену</option>{context?.geometry.walls.map(w => <option key={w.id} value={w.id}>{w.label}{w.internal ? " · внутренняя" : " · наружная"} — {format(wallLength(w))} м</option>)}</SelectField></FieldGroup>
+                <div className="va-add-row"><Button onClick={() => addOpening()} disabled={!selectedWall || project.openings.length >= 100}><Plus data-icon="inline-start" />Добавить продух на этой стене</Button><span>{project.openings.length} из 100 отверстий</span></div></details>
+              {!project.openings.length && <p className="va-help">Пока отверстий на схеме нет. Щёлкните по стене на плане справа, чтобы добавить первое. Если их действительно нет, отметьте это ниже и переходите к проверке.</p>}
               {project.openings.length > 0 && <div className="va-opening-list" aria-label="Добавленные продухи">{project.openings.map(o => <button key={o.id} aria-pressed={openingId === o.id} onClick={() => { setOpeningId(o.id); setWallId(o.wallId) }}><strong>{o.id}</strong><span>{openingSize(o)}<small>{context?.geometry.walls.find(w => w.id === o.wallId)?.label ?? "Укажите стену"} · {format(o.offset)} м</small></span>{o.freePercent === null && <span className="va-needs-data">Уточнить</span>}</button>)}</div>}
               {selectedOpening && <div className="va-opening-editor" key={selectedOpening.id}>
                 <div className="va-editor-title"><h3>Продух {selectedOpening.id}</h3><Button variant="ghost" onClick={() => removeOpening(selectedOpening.id)}><Trash2 data-icon="inline-start" />Удалить</Button></div>
@@ -183,8 +198,14 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
           </section>
 
           <section className="va-plan-section" aria-label="Схема вашего фундамента"><div className="va-plan-heading"><div><h2>Ваш дом сверху</h2><p>{context ? `${format(context.geometry.area)} м² по осям стен · ${context.rooms} отсек(а)` : "Исправьте размеры, чтобы увидеть схему"}</p></div>{step === 2 && proposal && <label className="va-check va-no-print"><input type="checkbox" checked={afterView} onChange={e => setAfterView(e.target.checked)} /><span>Показать изменения</span></label>}</div>
-            {context ? <VentAuditPlan geometry={context.geometry} openings={displayOpenings} original={project.openings} cells={context.cells} selectedWall={wallId} selectedOpening={openingId} onWall={id => { setWallId(id); setOpeningId(null) }} onOpening={id => { if (project.openings.some(o => o.id === id)) { setOpeningId(id); if (step !== 1) navigate(1) } }} /> : <p className="va-help">Укажите корректные размеры в полях выше.</p>}
-            <div className="va-legend"><span><i data-kind="existing" /> Уже есть</span><span><i data-kind="new" /> Н — добавить</span><span><i data-kind="enlarged" /> Увеличить</span><span>× Закрыто / не проверено</span></div><p className="va-plan-note">{selectedWall ? `${selectedWall.label}: начало X=${format(selectedWall.start.x)}, Z=${format(selectedWall.start.z)} м; конец X=${format(selectedWall.end.x)}, Z=${format(selectedWall.end.z)} м. ` : "Выберите стену. "}Размеры по осям стен. Нажмите на стену или номер продуха.</p>
+            {context ? <VentAuditPlan geometry={context.geometry} openings={displayOpenings} original={project.openings} cells={context.cells} selectedWall={wallId} selectedOpening={openingId}
+              onWall={id => { setWallId(id); setOpeningId(null) }}
+              onOpening={id => { if (project.openings.some(o => o.id === id)) { setOpeningId(id); if (step !== 1) navigate(1) } }}
+              onPlace={step === 1 ? placeOpening : undefined}
+              onMove={step === 1 ? moveOpening : undefined}
+              onDelete={step === 1 ? removeOpening : undefined}
+              disabled={step !== 1} /> : <p className="va-help">Укажите корректные размеры в полях выше.</p>}
+            <div className="va-legend"><span><i data-kind="existing" /> Уже есть</span><span><i data-kind="new" /> Н — добавить</span><span><i data-kind="enlarged" /> Увеличить</span><span>× Закрыто / не проверено</span></div><p className="va-plan-note">{step === 1 ? "Щёлкните по стене — появится продух. Перетащите отверстие вдоль стены или подвиньте стрелками; Delete удаляет выбранное. " : selectedWall ? `${selectedWall.label}: начало X=${format(selectedWall.start.x)}, Z=${format(selectedWall.start.z)} м; конец X=${format(selectedWall.end.x)}, Z=${format(selectedWall.end.z)} м. ` : "Выберите стену. "}Размеры по осям стен.</p>
           </section>
 
           <details className="va-details va-assumptions va-no-print"><summary>Условия проверки и новых работ</summary><p>Это настройки предварительного сценария. Они не заменяют проект и проверку прочности фундамента.</p><FieldGroup><div className="va-fields-grid">
