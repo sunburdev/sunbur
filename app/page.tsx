@@ -14,8 +14,8 @@ export default function Page() {
       <main>
         <Hero />
         <ToolsPromo />
-        <PricingTable />
         <ServiceCards />
+        <PricingTable />
         <VentCalculatorPromo />
         <Benefits />
         <WorksGrid />

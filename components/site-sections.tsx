@@ -22,7 +22,6 @@ import { locationSlug } from "@/lib/content"
 import { BoreReticle, Counter, Reveal } from "@/components/animations"
 import { BeforeAfterSlider } from "@/components/before-after"
 import { PriceCalculator } from "@/components/price-calculator"
-import { ventPage } from "@/lib/vent-page"
 
 const sectionClass = "mx-auto max-w-7xl px-4 lg:px-6"
 
@@ -229,7 +228,6 @@ export function PricingTable() {
         <Reveal className="mt-6">
           <PriceCalculator />
         </Reveal>
-        <Link href={ventPage.path} className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/5 p-5 transition-colors hover:bg-primary/10"><span><strong className="block text-sm">Нужны продухи в фундаменте?</strong><span className="mt-1 block text-sm text-muted-foreground">Рассчитайте количество, диаметр и стоимость в 3D-калькуляторе.</span></span><ArrowUpRight className="size-5 shrink-0 text-primary" /></Link>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
           Стоимость зависит от диаметра, материала, толщины конструкции, количества отверстий, наличия арматуры и условий работы. Минимальная стоимость одного отверстия — {pricingConfig.minHolePrice.toLocaleString("ru-RU")} ₽ независимо от глубины.
         </p>
@@ -365,7 +363,7 @@ export function MasterBlock() {
       <div className={`${sectionClass} grid items-center gap-10 lg:grid-cols-2`}>
         <Reveal className="relative">
           <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border">
-            <Image src="/images/hero-drilling.png" alt="Частный мастер SUNBUR с установкой алмазного бурения" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+            <Image src="/images/work-foundation.png" alt="Частный мастер SUNBUR бурит отверстие в фундаменте" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
           </div>
           <div className="absolute -bottom-4 -right-4 hidden rounded-xl border border-border bg-background p-4 shadow-xl sm:block">
             <BoreReticle className="size-16 text-foreground" />
@@ -429,7 +427,7 @@ export function ContactCTA() {
 
 export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
   return (
-    <nav aria-label="Хлебн��е крошки" className="text-sm text-muted-foreground">
+    <nav aria-label="Хлебные крошки" className="text-sm text-muted-foreground">
       <ol className="flex flex-wrap items-center gap-2">
         <li>
           <Link href="/">Главная</Link>

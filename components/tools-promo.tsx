@@ -3,6 +3,7 @@ import { ArrowUpRight, CircleDashed, Ruler, Camera, Wind, Calculator, Droplets, 
 import { toolsCatalog, toolPath, type ToolId } from "@/lib/tools-catalog"
 
 const icons = { angle: MoveUpRight, airflow: Waves, sealant: Pipette, diameter: CircleDashed, slope: Ruler, equipment: Wind, estimate: Calculator, moisture: Droplets, photo: Camera } satisfies Record<ToolId, typeof Ruler>
+// No "added" date in toolsCatalog — prune this list by hand once a tool stops being new.
 const newTools: ToolId[] = ["angle", "airflow", "sealant"]
 
 export function ToolsPromo() {
@@ -26,7 +27,6 @@ export function ToolsPromo() {
           </Link>
         })}
       </div>
-      <Link href="/kalkulyator-produhov" className="mt-4 flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-5 py-4 text-sm transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"><span><strong>Продухи в фундаменте · 3D-конструктор</strong><span className="mt-1 block text-muted-foreground">Постройте цоколь, разместите отверстия и сравните варианты.</span></span><ArrowUpRight size={21} className="shrink-0 text-primary" /></Link>
     </div>
   </section>
 }

@@ -184,7 +184,7 @@ function FaqSection() {
   return (
     <section className="border-t border-border py-16 sm:py-20">
       <div className="mx-auto max-w-5xl px-4 lg:px-6">
-        <SectionHeading eyebrow="Вопросы и ответы" title="Час��ые вопросы" />
+        <SectionHeading eyebrow="Вопросы и ответы" title="Частые вопросы" />
         <FAQ />
       </div>
     </section>
