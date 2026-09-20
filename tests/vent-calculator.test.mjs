@@ -11,7 +11,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 
-const { DEFAULT_FOUNDATION, calculateVentilation, getFoundationGeometry, foundationInputSchema, migrateFoundationProjectV1, templateContour, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
+const { DEFAULT_FOUNDATION, calculateVentilation, dragContourWall, getFoundationGeometry, foundationInputSchema, migrateFoundationProjectV1, templateContour, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
 const { calculateHolePrice } = await import("../lib/site-data.ts")
 
 test("rectangle, L and U footprints exclude cutouts and clip partitions", () => {
@@ -147,6 +147,33 @@ test("a custom contour that doesn't return to its start is rejected with the act
   const result = foundationInputSchema.safeParse({ ...DEFAULT_FOUNDATION, shape: "custom", contour: openEnded })
   assert.equal(result.success, false)
   assert.ok(result.error.issues.some(issue => issue.path.join(".") === "contour" && issue.message.includes("не замкнут")))
+})
+
+test("dragging a wall handle only changes that wall, along its own direction", () => {
+  const rect = [{ id: "c1", length: 10, turn: "right" }, { id: "c2", length: 8, turn: "right" }, { id: "c3", length: 10, turn: "right" }, { id: "c4", length: 8, turn: "right" }]
+  // Wall 0 runs east (x); dragging it along x resizes only that one wall — exactly
+  // what typing a new value into its length field would do, so (like that field)
+  // it can leave the loop open until the opposite wall is adjusted to match.
+  const stretched = dragContourWall(rect, 0, 3, 0)
+  assert.equal(stretched[0].length, 13)
+  assert.deepEqual(stretched.slice(1), rect.slice(1))
+  assert.equal(walkContour(stretched).closed, false)
+  // Matching the change on the parallel opposite wall (wall 2, running west) closes it again.
+  const compensated = dragContourWall(stretched, 2, -3, 0)
+  assert.equal(compensated[2].length, 13)
+  assert.ok(walkContour(compensated).closed)
+  // The perpendicular component of the drag is projected away, not applied.
+  const sideways = dragContourWall(rect, 0, 0, 5)
+  assert.equal(sideways[0].length, 10)
+  // Shrinking is clamped to the schema's 0.3 m floor rather than going negative.
+  const shrunk = dragContourWall(rect, 0, -50, 0)
+  assert.equal(shrunk[0].length, 0.3)
+
+  // An open contour's last wall ends at gap, not at the starting vertex. A
+  // horizontal drag therefore cannot resize this final vertical wall.
+  const open = [{ id: "c1", length: 4, turn: "right" }, { id: "c2", length: 3, turn: "right" }, { id: "c3", length: 2, turn: "right" }, { id: "c4", length: 1, turn: "right" }]
+  assert.equal(walkContour(open).closed, false)
+  assert.equal(dragContourWall(open, 3, 2, 0)[3].length, 1)
 })
 
 test("the T and cross quick templates always close, for any bounding box", () => {

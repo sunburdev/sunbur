@@ -56,6 +56,22 @@ export function walkContour(steps: { length: number; turn: "left" | "right" }[])
   return { vertices, gap: point, closed }
 }
 
+/** Resizes one wall of the contour by projecting a mouse drag (dx, dz) onto that
+ *  wall's own direction — the same "change one length" edit the numeric field
+ *  below makes, just driven by a pointer instead of typing. Because it only ever
+ *  touches one step, it has the same closing behaviour as editing that field. */
+export function dragContourWall(steps: ContourStep[], wallIndex: number, dx: number, dz: number): ContourStep[] {
+  const n = steps.length
+  if (n === 0) return steps
+  const { vertices, gap } = walkContour(steps)
+  const k = ((wallIndex % n) + n) % n
+  const from = vertices[k], to = k === n - 1 ? gap : vertices[k + 1]
+  const length = Math.hypot(to.x - from.x, to.z - from.z) || 1
+  const dir = { x: (to.x - from.x) / length, z: (to.z - from.z) / length }
+  const newLength = Math.max(0.3, Math.round((steps[k].length + (dx * dir.x + dz * dir.z)) * 10) / 10)
+  return steps.map((step, i) => i === k ? { ...step, length: newLength } : step)
+}
+
 const round = (n: number) => Number(n.toFixed(2))
 
 /** Quick-start contours for common footprints that aren't plain rectangle/L/U,
