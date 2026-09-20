@@ -3,11 +3,12 @@
 import Link from "next/link"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import type { FormEvent, ReactNode } from "react"
-import { ArrowLeft, ArrowRight, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Download, FileUp, Layers3, Loader2, Plus, Printer, RotateCcw, Ruler, Send, SlidersHorizontal, Sparkles, Wind } from "lucide-react"
+import { ArrowLeft, ArrowRight, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Download, FileUp, Hand, Layers3, Loader2, Plus, Printer, RotateCcw, Ruler, Send, SlidersHorizontal, Sparkles, Wind, X } from "lucide-react"
 import { FoundationView } from "@/components/foundation-view"
+import { FoundationVentCanvas } from "@/components/foundation-vent-canvas"
 import { BrandMark } from "@/components/brand-mark"
-import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, migrateFoundationProjectV1, walkContour } from "@/lib/vent-calculator"
-import type { ContourStep, FoundationInput } from "@/lib/vent-calculator"
+import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, migrateFoundationProjectV1, pointOnWall, summarizeManualVents, walkContour } from "@/lib/vent-calculator"
+import type { ContourStep, FoundationInput, VentPlacement } from "@/lib/vent-calculator"
 import { materialOptions } from "@/lib/site-data"
 import { ContourEditor } from "@/components/foundation-contour-editor"
 
@@ -43,6 +44,9 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
   const [selectedWall, setSelectedWall] = useState<string | null>(null)
   const [view, setView] = useState<"3d" | "plan">("3d")
   const [airflow, setAirflow] = useState(false)
+  const [manualVents, setManualVents] = useState<VentPlacement[] | null>(null)
+  const [manualDiameter, setManualDiameter] = useState<number | null>(null)
+  const [selectedManualId, setSelectedManualId] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const [notice, setNotice] = useState("")
   const [question, setQuestion] = useState("")
@@ -54,6 +58,8 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
   const validated = useMemo(() => foundationInputSchema.safeParse(input), [input])
   const result = useMemo(() => validated.success ? calculateVentilation(validated.data) : null, [validated])
   const variant = result?.variants.find((item) => item.id === selectedId && item.feasible) ?? result?.variants.find((item) => item.id === result.recommendedId) ?? result?.variants.find((item) => item.feasible) ?? result?.variants[0] ?? null
+  const manualResult = useMemo(() => manualVents && manualDiameter && result ? summarizeManualVents(input, result.geometry, result.requiredArea, manualVents, manualDiameter) : null, [manualVents, manualDiameter, result, input])
+  const activeVariant = manualResult ?? variant
   const chosenWall = result?.geometry.walls.find((wall) => wall.id === selectedWall)
   const signature = JSON.stringify({ input, variantId: variant?.id })
 
@@ -81,7 +87,39 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
   function update<K extends keyof FoundationInput>(key: K, value: FoundationInput[K]) {
     setInput((previous) => ({ ...previous, [key]: value }))
     if (key === "shape" || key === "partitions") setSelectedWall(null)
+    // Any parameter change can move or invalidate hand-placed holes (shape, thickness,
+    // material...); safest is to drop back to the automatic layout rather than keep a
+    // manual list that may no longer match the geometry.
+    setManualVents(null); setManualDiameter(null); setSelectedManualId(null)
   }
+
+  function enterManualMode() {
+    if (!variant) return
+    setManualVents(variant.vents.map((vent) => ({ ...vent })))
+    setManualDiameter(variant.diameterMm)
+    setSelectedManualId(null)
+    setView("plan")
+  }
+  function exitManualMode() { setManualVents(null); setManualDiameter(null); setSelectedManualId(null) }
+  function placeManualVent(wallId: string, offset: number) {
+    if (!manualVents || manualVents.length >= 100) return
+    const wall = result?.geometry.walls.find((w) => w.id === wallId)
+    if (!wall) return
+    const point = pointOnWall(wall, offset)
+    let n = 1; while (manualVents.some((v) => v.id === `manual-${n}`)) n++
+    setManualVents([...manualVents, { id: `manual-${n}`, wallId, x: point.x, z: point.z, offset: Number(offset.toFixed(2)), internal: wall.internal }])
+    setSelectedManualId(`manual-${n}`)
+  }
+  function moveManualVent(id: string, offset: number) {
+    setManualVents((previous) => previous && previous.map((v) => {
+      if (v.id !== id) return v
+      const wall = result?.geometry.walls.find((w) => w.id === v.wallId)
+      if (!wall) return v
+      const point = pointOnWall(wall, offset)
+      return { ...v, offset, x: point.x, z: point.z }
+    }))
+  }
+  function deleteManualVent(id: string) { setManualVents((previous) => previous && previous.filter((v) => v.id !== id)); setSelectedManualId(null) }
 
   function selectShape(shape: FoundationInput["shape"]) {
     if (shape === "custom" && input.shape !== "custom") {
@@ -192,17 +230,28 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
         <div className="vc-model-column">
           <section className="vc-viewport vc-panel" aria-label="Модель фундамента">
             {result && !result.recommendedId && <div className="vc-warning vc-fit-warning" role="alert"><strong>Подходящая схема не найдена.</strong> Показана пробная раскладка с ограничениями. Проверьте высоту, отступы и размеры; причины указаны под вариантами.</div>}
-            <div className="vc-viewport-toolbar vc-no-print"><div className="vc-view-switch" aria-label="Вид модели"><button className={view === "3d" ? "is-active" : ""} aria-pressed={view === "3d"} onClick={() => setView("3d")}><Box size={15} /> 3D-модель</button><button className={view === "plan" ? "is-active" : ""} aria-pressed={view === "plan"} onClick={() => setView("plan")}><Layers3 size={15} /> План сверху</button></div><button className={`vc-airflow ${airflow ? "is-active" : ""}`} aria-label="Направления воздуха" aria-pressed={airflow} onClick={() => setAirflow(!airflow)}><Wind size={16} /><span>Направления воздуха</span></button></div>
-            {result ? <FoundationView input={input} geometry={result.geometry} variant={variant} selectedWall={selectedWall} onSelectWall={setSelectedWall} showAirflow={airflow} view={view} /> : <div className="vc-invalid" role="alert"><Ruler size={30} /><h3>Уточните размеры</h3>{!validated.success && validated.error.issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</div>}
-            <div className="vc-model-caption"><span><i className="vc-dot" /> Наружный продух</span><span><i className="vc-dot vc-dot-grey" /> Переточное отверстие</span><small>{airflow ? "Стрелки условные, без расчёта воздушного потока" : "Нажмите на стену, чтобы увидеть её отверстия"}</small></div>
-            <div className="vc-stats" aria-live="polite"><div><span>Площадь контура</span><strong>{result ? number(result.geometry.area) : "—"}<small> м²</small></strong></div><div><span>Наружные продухи</span><strong>{variant?.externalCount ?? "—"}<small> шт.</small></strong></div><div><span>Выбранный диаметр</span><strong>{variant ? `Ø ${variant.diameterMm}` : "—"}<small> мм</small></strong></div><div><span>Бурение, ориентир</span><strong className="vc-price">{variant ? money(variant.finalPrice) : "—"}{variant && variant.discountPercent > 0 && <small className="vc-discount-badge">-{variant.discountPercent}%</small>}</strong>{variant && variant.discountPercent > 0 && <small className="vc-price-original">{money(variant.totalPrice)}</small>}</div></div>
+            <div className="vc-viewport-toolbar vc-no-print">{manualVents ? <>
+                <div className="vc-manual-toolbar"><Hand size={15} /><span>Ручная правка</span><div className="vc-select vc-manual-diameter"><select aria-label="Диаметр для новых отверстий" value={manualDiameter ?? ""} onChange={(e) => setManualDiameter(Number(e.target.value))}>{result?.variants.map((item) => <option key={item.diameterMm} value={item.diameterMm}>Ø {item.diameterMm} мм</option>)}</select><ChevronDown size={14} /></div></div>
+                <button className="vc-button" onClick={exitManualMode}><X size={15} /> Сбросить к автоподбору</button>
+              </> : <>
+                <div className="vc-view-switch" aria-label="Вид модели"><button className={view === "3d" ? "is-active" : ""} aria-pressed={view === "3d"} onClick={() => setView("3d")}><Box size={15} /> 3D-модель</button><button className={view === "plan" ? "is-active" : ""} aria-pressed={view === "plan"} onClick={() => setView("plan")}><Layers3 size={15} /> План сверху</button></div>
+                <button className="vc-button" disabled={!variant} onClick={enterManualMode}><Hand size={15} /> Ручная правка</button>
+                <button className={`vc-airflow ${airflow ? "is-active" : ""}`} aria-label="Направления воздуха" aria-pressed={airflow} onClick={() => setAirflow(!airflow)}><Wind size={16} /><span>Направления воздуха</span></button>
+              </>}</div>
+            {manualVents && manualDiameter ? <FoundationVentCanvas geometry={result!.geometry} vents={manualVents} diameterMm={manualDiameter} selectedId={selectedManualId} onSelect={setSelectedManualId} onPlace={placeManualVent} onMove={moveManualVent} onDelete={deleteManualVent} />
+              : result ? <FoundationView input={input} geometry={result.geometry} variant={variant} selectedWall={selectedWall} onSelectWall={setSelectedWall} showAirflow={airflow} view={view} /> : <div className="vc-invalid" role="alert"><Ruler size={30} /><h3>Уточните размеры</h3>{!validated.success && validated.error.issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</div>}
+            <div className="vc-model-caption">{manualVents ? <span>Щёлкните по стене — появится отверстие. Перетащите его вдоль стены, стрелками — точнее, Delete удаляет выбранное.</span> : <><span><i className="vc-dot" /> Наружный продух</span><span><i className="vc-dot vc-dot-grey" /> Переточное отверстие</span><small>{airflow ? "Стрелки условные, без расчёта воздушного потока" : "Нажмите на стену, чтобы увидеть её отверстия"}</small></>}</div>
+            <div className="vc-stats" aria-live="polite"><div><span>Площадь контура</span><strong>{result ? number(result.geometry.area) : "—"}<small> м²</small></strong></div><div><span>Наружные продухи</span><strong>{activeVariant?.externalCount ?? "—"}<small> шт.</small></strong></div><div><span>Выбранный диаметр</span><strong>{activeVariant ? `Ø ${activeVariant.diameterMm}` : "—"}<small> мм</small></strong></div><div><span>Бурение, ориентир</span><strong className="vc-price">{activeVariant ? money(activeVariant.finalPrice) : "—"}{activeVariant && activeVariant.discountPercent > 0 && <small className="vc-discount-badge">-{activeVariant.discountPercent}%</small>}</strong>{activeVariant && activeVariant.discountPercent > 0 && <small className="vc-price-original">{money(activeVariant.totalPrice)}</small>}</div></div>
+            {manualVents && manualResult && (!manualResult.feasible || manualResult.warnings.length > 0) && <div className="vc-warning vc-no-print" role="status">{manualResult.freeArea < result!.requiredArea - 1e-9 && <p>Не хватает {number((result!.requiredArea - manualResult.freeArea) * 10000, 0)} см² свободного сечения до цели {number(result!.requiredArea * 10000, 0)} см².</p>}{manualResult.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</div>}
           </section>
           <div className="vc-estimate-note"><CircleHelp size={17} /><p>Это предварительная схема для обсуждения с мастером. Расположение арматуры, несущую способность и условия вентиляции проверяет специалист перед бурением.</p></div>
         </div>
       </div>
 
       {result && variant && <>
-        <section className="vc-results" aria-labelledby="vc-variants-title"><div className="vc-section-heading"><div><span className="vc-eyebrow">МЕНЬШЕ ОТВЕРСТИЙ ИЛИ НИЖЕ ЦЕНА?</span><h2 id="vc-variants-title">Сравните варианты</h2></div><p>Одна геометрия. Разные диаметры.<br />Минимум по площади: <strong>{number(result.requiredArea, 3)} м²</strong></p></div>
+        {manualVents ? <section className="vc-results" aria-labelledby="vc-variants-title"><div className="vc-section-heading"><div><span className="vc-eyebrow">РЕЖИМ РУЧНОЙ ПРАВКИ</span><h2 id="vc-variants-title">Ваша раскладка</h2></div><p>Минимум по площади: <strong>{number(result.requiredArea, 3)} м²</strong></p></div>
+          <p className="vc-hint">Сравнение диаметров недоступно, пока открыта ручная правка — «Сбросить к автоподбору» вернёт его. Стоимость и площадь ниже считаются по вашей раскладке.</p>
+        </section> : <section className="vc-results" aria-labelledby="vc-variants-title"><div className="vc-section-heading"><div><span className="vc-eyebrow">МЕНЬШЕ ОТВЕРСТИЙ ИЛИ НИЖЕ ЦЕНА?</span><h2 id="vc-variants-title">Сравните варианты</h2></div><p>Одна геометрия. Разные диаметры.<br />Минимум по площади: <strong>{number(result.requiredArea, 3)} м²</strong></p></div>
           <div className="vc-variants">{result.variants.map((item) => <button key={item.id} disabled={!item.feasible} aria-pressed={variant.id === item.id} onClick={() => setSelectedId(item.id)} className={`vc-variant ${variant.id === item.id ? "is-selected" : ""} ${!item.feasible ? "is-unavailable" : ""}`}>
             <span className="vc-variant-badge">{item.id === result.recommendedId ? <><Sparkles size={12} /> Выгоднее по расчёту</> : !item.feasible ? "Не помещается" : "Вариант"}</span>
             <span className="vc-variant-title"><strong>Ø {item.diameterMm}<small> мм</small></strong><i>{variant.id === item.id && <Check size={14} />}</i></span>
@@ -213,12 +262,12 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
           </button>)}</div>
           <p className="vc-hint vc-pricing-note">Стоимость включает бурение всех показанных отверстий{result.variants.some((item) => item.discountPercent > 0) ? " и скидку за количество отверстий" : ""}. Решётки, гильзы, доставка и дополнительные работы не включены. «Выгоднее» — минимум среди рассчитанных диаметров при заданных условиях.</p>
           {(!variant.feasible || variant.warnings.length > 0) && <div className="vc-warning" role="status">{variant.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</div>}
-        </section>
+        </section>}
 
         <div className="vc-bottom-grid">
           <section className="vc-panel vc-placement"><div className="vc-panel-title"><h2><Ruler size={17} /> Схема размещения</h2><button className="vc-button vc-no-print" onClick={() => window.print()}><Printer size={15} /> Печать / PDF</button></div>
             <div className="vc-wall-filter vc-no-print"><label htmlFor="vc-wall">Выберите стену</label><div className="vc-select"><select id="vc-wall" value={selectedWall ?? ""} onChange={(event) => setSelectedWall(event.target.value || null)}><option value="">Все стены</option>{result.geometry.walls.map((wall) => <option key={wall.id} value={wall.id}>{wall.label}{wall.internal ? " · внутренняя" : ""}</option>)}</select><ChevronDown size={14} /></div></div>
-            <div className="vc-table-wrap"><table><thead><tr><th>Стена</th><th>Длина</th><th>Центры от начала стены, м</th></tr></thead><tbody>{result.geometry.walls.map((wall) => { const vents = variant.vents.filter((vent) => vent.wallId === wall.id).sort((a, b) => a.offset - b.offset); return <tr key={wall.id} className={selectedWall && wall.id !== selectedWall ? "vc-filtered-wall" : undefined}><td><strong>{wall.label}</strong><small>{wall.internal ? "Внутренняя" : "Наружная"}</small><small className="vc-print-origin">Начало X {number(wall.start.x)}, Z {number(wall.start.z)}; конец X {number(wall.end.x)}, Z {number(wall.end.z)} м</small></td><td>{number(Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z))} м</td><td>{vents.length ? vents.map((vent) => number(vent.offset, 2)).join(" · ") : "Нет отверстий"}</td></tr> })}</tbody></table></div>
+            <div className="vc-table-wrap"><table><thead><tr><th>Стена</th><th>Длина</th><th>Центры от начала стены, м</th></tr></thead><tbody>{result.geometry.walls.map((wall) => { const vents = (activeVariant?.vents ?? []).filter((vent) => vent.wallId === wall.id).sort((a, b) => a.offset - b.offset); return <tr key={wall.id} className={selectedWall && wall.id !== selectedWall ? "vc-filtered-wall" : undefined}><td><strong>{wall.label}</strong><small>{wall.internal ? "Внутренняя" : "Наружная"}</small><small className="vc-print-origin">Начало X {number(wall.start.x)}, Z {number(wall.start.z)}; конец X {number(wall.end.x)}, Z {number(wall.end.z)} м</small></td><td>{number(Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z))} м</td><td>{vents.length ? vents.map((vent) => number(vent.offset, 2)).join(" · ") : "Нет отверстий"}</td></tr> })}</tbody></table></div>
             {chosenWall && <p className="vc-table-note">Начало выбранной стены: X {number(chosenWall.start.x)} м, Z {number(chosenWall.start.z)} м. Конец: X {number(chosenWall.end.x)} м, Z {number(chosenWall.end.z)} м.</p>}
             <p className="vc-table-note">Размеры по осям стен. Центр отверстий — {number(input.ventHeight)} м от низа цоколя в модели (не от уровня земли). Во внешнюю площадь входят только наружные продухи. Полные координаты X/Z — в файле проекта.</p>
           </section>
@@ -233,7 +282,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
         </div>
 
         <details className="vc-methodology"><summary>Как устроен расчёт и что он учитывает <Plus size={16} /></summary><div><p>Расчётная площадь = площадь контура / {input.areaRatio}. Свободное сечение одного отверстия = π × (диаметр / 2)² × {input.grilleFreePercent}%. Подбор дополнительно учитывает распределение по стенам, шаг, отступы и внутренние перемычки.</p>{result.notes.map((note, index) => <p key={index}>{note}</p>)}<h3>Источники и область применения</h3>{CALCULATION_SOURCES.map((source) => <p key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.title}<ArrowUpRight size={13} /></a>{source.note && <> — {source.note}</>}</p>)}</div></details>
-        <div className="vc-print-summary"><h2>Параметры расчёта SUNBUR</h2><p>{shapeNames[input.shape]}, {input.length} × {input.width} м; высота {input.height} м; стена {input.thickness} мм. Материал: {materialOptions.find((item) => item.value === input.material)?.label}. Сечение решётки {input.grilleFreePercent}%; площадь 1/{input.areaRatio}; максимальный шаг {input.maxSpacing} м; отступ {input.cornerOffset} м.</p><p>Сечение наружных продухов: {number(variant.freeArea, 3)} м² при расчётной цели {number(result.requiredArea, 3)} м². Всего {variant.totalCount} отверстий Ø{variant.diameterMm} мм. Бурение: {money(variant.finalPrice)}{variant.discountPercent > 0 ? ` (со скидкой ${variant.discountPercent}% за количество; без скидки ${money(variant.totalPrice)})` : ""}, без решёток, гильз и доставки.</p>{result.notes.map((note, index) => <p key={index}>{note}</p>)}</div>
+        <div className="vc-print-summary"><h2>Параметры расчёта SUNBUR</h2><p>{shapeNames[input.shape]}, {input.length} × {input.width} м; высота {input.height} м; стена {input.thickness} мм. Материал: {materialOptions.find((item) => item.value === input.material)?.label}. Сечение решётки {input.grilleFreePercent}%; площадь 1/{input.areaRatio}; максимальный шаг {input.maxSpacing} м; отступ {input.cornerOffset} м.</p><p>Сечение наружных продухов: {number((activeVariant ?? variant).freeArea, 3)} м² при расчётной цели {number(result.requiredArea, 3)} м². Всего {(activeVariant ?? variant).totalCount} отверстий Ø{(activeVariant ?? variant).diameterMm} мм. Бурение: {money((activeVariant ?? variant).finalPrice)}{(activeVariant ?? variant).discountPercent > 0 ? ` (со скидкой ${(activeVariant ?? variant).discountPercent}% за количество; без скидки ${money((activeVariant ?? variant).totalPrice)})` : ""}, без решёток, гильз и доставки.</p>{result.notes.map((note, index) => <p key={index}>{note}</p>)}</div>
       </>}
       {children}
       <footer className="vc-footer"><Link href="/">SUNBUR<span> · алмазное бурение</span></Link><span>От идеи — к точному отверстию.</span><Link className="vc-no-print" href="/#contacts">Обсудить с мастером <ArrowRight size={14} /></Link></footer>

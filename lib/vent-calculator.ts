@@ -206,6 +206,11 @@ export type FoundationPoint = { x: number; z: number }
 export type FoundationWall = { id: string; label: string; start: FoundationPoint; end: FoundationPoint; internal: boolean }
 export type FoundationGeometry = { vertices: FoundationPoint[]; walls: FoundationWall[]; area: number; perimeter: number }
 export type VentPlacement = { id: string; wallId: string; x: number; z: number; offset: number; internal: boolean }
+export function pointOnWall(wall: FoundationWall, offset: number): FoundationPoint {
+  const dx = wall.end.x - wall.start.x, dz = wall.end.z - wall.start.z
+  const length = Math.hypot(dx, dz) || 1
+  return { x: wall.start.x + (dx / length) * offset, z: wall.start.z + (dz / length) * offset }
+}
 export type VentVariant = {
   id: string; diameterMm: number; vents: VentPlacement[]; externalCount: number;
   internalCount: number; totalCount: number; freeArea: number; coverage: number;
@@ -235,7 +240,7 @@ const EPSILON = 1e-8
 // Geometric assumptions only. These are not structural design clearances.
 const VERTICAL_EDGE_CLEARANCE = 0.1
 const MINIMUM_WEB = 0.15
-const DIAMETERS = [132, 152, 162, 200, 250] as const
+export const DIAMETERS = [132, 152, 162, 200, 250] as const
 const distance = (a: FoundationPoint, b: FoundationPoint) => Math.hypot(b.x - a.x, b.z - a.z)
 const horizontal = (wall: FoundationWall) => Math.abs(wall.start.z - wall.end.z) < EPSILON
 const along = (point: FoundationPoint, wall: FoundationWall) => horizontal(wall) ? point.x : point.z
@@ -472,4 +477,45 @@ export function calculateVentilation(input: FoundationInput) {
   if (value.shape !== "rectangle") notes.push("В угловых отсеках и вырезах сложного контура возможны застойные зоны; равномерная расстановка сама по себе не подтверждает сквозное проветривание.")
   if (!recommended) notes.push("При этих параметрах подходящий вариант не найден: измените геометрию, высоту или допущения и повторите расчёт.")
   return { geometry, requiredArea, variants, recommendedId: recommended?.id ?? null, notes }
+}
+
+/** Same edge/pitch margins `calculateVariant` enforces when it auto-places holes,
+ *  applied instead to a hand-edited list — so manual mode gets the same warnings. */
+export function manualVentWarnings(value: FoundationInput, geometry: FoundationGeometry, vents: VentPlacement[], diameterMm: number): string[] {
+  const radius = diameterMm / 2000
+  const margin = value.cornerOffset + radius + value.thickness / 2000
+  const minPitch = diameterMm / 1000 + MINIMUM_WEB
+  const warnings: string[] = []
+  for (const wall of geometry.walls) {
+    const length = distance(wall.start, wall.end)
+    const offsets = vents.filter(v => v.wallId === wall.id).map(v => v.offset).sort((a, b) => a - b)
+    if (offsets.some(offset => offset < margin - EPSILON || offset > length - margin + EPSILON)) {
+      warnings.push(`${wall.label}: отверстие расположено слишком близко к краю или примыканию.`)
+    }
+    for (let i = 1; i < offsets.length; i++) {
+      if (offsets[i] - offsets[i - 1] < minPitch - EPSILON) { warnings.push(`${wall.label}: два отверстия расположены слишком близко друг к другу.`); break }
+    }
+  }
+  const heightFits = value.ventHeight - radius >= VERTICAL_EDGE_CLEARANCE - EPSILON && value.height - value.ventHeight - radius >= VERTICAL_EDGE_CLEARANCE - EPSILON
+  if (!heightFits) warnings.push(`Ø${diameterMm} не помещается по высоте: нужен запас по 100 мм от края отверстия до низа и верха цоколя.`)
+  return [...new Set(warnings)]
+}
+
+/** Turns a hand-edited vent list into the same shape calculateVariant returns, so
+ *  manual mode can reuse every bit of UI that already knows how to show a variant. */
+export function summarizeManualVents(value: FoundationInput, geometry: FoundationGeometry, requiredArea: number, vents: VentPlacement[], diameterMm: number): VentVariant {
+  const oneFreeArea = Math.PI * (diameterMm / 2000) ** 2 * value.grilleFreePercent / 100
+  const externalCount = vents.filter(vent => !vent.internal).length
+  const internalCount = vents.length - externalCount
+  const freeArea = externalCount * oneFreeArea
+  const pricePerHole = calculateHolePrice({ diameterMm, material: value.material, depthMm: value.thickness, atHeight: false, underFloor: value.underFloor })
+  const totalPrice = vents.length * pricePerHole
+  const discount = applyQuantityDiscount(totalPrice, vents.length)
+  const warnings = manualVentWarnings(value, geometry, vents, diameterMm)
+  return {
+    id: "manual", diameterMm, vents, externalCount, internalCount, totalCount: vents.length, freeArea,
+    coverage: freeArea / requiredArea, pricePerHole, totalPrice,
+    discountPercent: discount.percent, discountAmount: discount.discountAmount, finalPrice: discount.total,
+    feasible: !warnings.length && freeArea >= requiredArea - EPSILON, warnings,
+  }
 }
