@@ -14,6 +14,9 @@ import { site } from "@/lib/site-data"
 type PriceToolOutput = {
   pricePerHoleRub: number
   quantity: number
+  subtotalRub: number
+  discountPercent: number
+  discountAmountRub: number
   totalRub: number
   minHolePriceRub: number
   note: string
@@ -187,10 +190,21 @@ export function ChatWidget() {
                               Расчёт стоимости
                             </div>
                             <div className="flex flex-col gap-1 px-3 py-2.5">
-                              <p className="font-mono text-2xl font-black tracking-tight">{rub(output.totalRub)}</p>
+                              <div className="flex items-baseline gap-2">
+                                {output.discountPercent > 0 && (
+                                  <span className="font-mono text-sm text-muted-foreground line-through">{rub(output.subtotalRub)}</span>
+                                )}
+                                <p className="font-mono text-2xl font-black tracking-tight">{rub(output.totalRub)}</p>
+                                {output.discountPercent > 0 && (
+                                  <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">-{output.discountPercent}%</span>
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground">
                                 {output.quantity > 1 ? `${rub(output.pricePerHoleRub)} × ${output.quantity} отв.` : "1 отверстие"}, минимум {rub(output.minHolePriceRub)} за отверстие
                               </p>
+                              {output.discountPercent > 0 && (
+                                <p className="text-xs font-medium text-primary">Скидка за количество: -{rub(output.discountAmountRub)}</p>
+                              )}
                               <p className="mt-1 text-xs text-muted-foreground">{output.note}</p>
                             </div>
                           </div>

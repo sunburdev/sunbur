@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowRight, ArrowUp, ChevronsDown } from "lucide-react"
+import { ArrowRight, ArrowUp, ChevronsDown, Tag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,10 +14,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  applyQuantityDiscount,
   calculateHolePrice,
   materialOptions,
   priceRates,
   pricingConfig,
+  quantityDiscountTiers,
   type MaterialKey,
 } from "@/lib/site-data"
 
@@ -44,7 +46,14 @@ export function PriceCalculator() {
     [diameterMm, material, depthValue, atHeight, underFloor],
   )
 
-  const total = pricePerHole * quantityValue
+  const subtotal = pricePerHole * quantityValue
+  const discount = applyQuantityDiscount(subtotal, quantityValue)
+  const total = discount.total
+
+  const nextTier = useMemo(() => {
+    const ascending = [...quantityDiscountTiers].sort((a, b) => a.minQuantity - b.minQuantity)
+    return ascending.find((tier) => tier.minQuantity > quantityValue)
+  }, [quantityValue])
 
   return (
     <div className="grid overflow-hidden rounded-2xl border border-border bg-card lg:grid-cols-2">
@@ -147,11 +156,31 @@ export function PriceCalculator() {
 
       <div className="flex flex-col justify-between gap-6 border-t border-border bg-secondary p-6 text-secondary-foreground lg:border-t-0 lg:border-l">
         <div>
-          <p className="text-sm text-muted-foreground">Ориентировочная стоимость</p>
-          <p className="mt-1 font-mono text-4xl font-black tracking-tight">{total.toLocaleString("ru-RU")} ₽</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">Ориентировочная стоимость</p>
+            {discount.percent > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
+                <Tag data-icon="inline-start" className="size-3.5" />
+                -{discount.percent}% за объём
+              </span>
+            )}
+          </div>
+          <div className="mt-1 flex items-baseline gap-2">
+            {discount.percent > 0 && (
+              <span className="font-mono text-lg text-muted-foreground line-through">{subtotal.toLocaleString("ru-RU")} ₽</span>
+            )}
+            <p className="font-mono text-4xl font-black tracking-tight">{total.toLocaleString("ru-RU")} ₽</p>
+          </div>
           <p className="mt-2 text-sm text-muted-foreground">
             {quantityValue > 1 ? `${pricePerHole.toLocaleString("ru-RU")} ₽ × ${quantityValue} отв.` : "1 отверстие"}, минимум {pricingConfig.minHolePrice.toLocaleString("ru-RU")} ₽ за отверстие
           </p>
+          {discount.percent > 0 ? (
+            <p className="mt-2 text-sm font-medium text-primary">Экономия {discount.discountAmount.toLocaleString("ru-RU")} ₽ благодаря скидке за количество</p>
+          ) : nextTier ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Ещё {nextTier.minQuantity - quantityValue} {nextTier.minQuantity - quantityValue === 1 ? "отверстие" : "отверстия"} — и скидка {nextTier.percent}%
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">Точная цена — после уточнения условий доступа и фото объекта.</p>

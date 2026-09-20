@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { calculateHolePrice, priceRates } from "./site-data"
+import { applyQuantityDiscount, calculateHolePrice, priceRates } from "./site-data"
 import { equipmentCatalog, type ToolId } from "./tools-catalog"
 import { crownDiameters, diameterSources, type DiameterOption } from "./diameter-catalog"
 
@@ -107,8 +107,24 @@ export function calculateHomeTool(raw: ToolInput): ToolResult {
     case "estimate": {
       const rows = input.rows.map(row => ({ ...row, unitPrice: price(row.diameter, row), total: price(row.diameter, row) * row.quantity }))
       const count = rows.reduce((sum, row) => sum + row.quantity, 0)
-      const total = rows.reduce((sum, row) => sum + row.total, 0)
-      return { metrics: [{ label: "Всего отверстий", value: String(count) }, { label: "Позиций в смете", value: String(rows.length) }, { label: "Бурение, ориентир", value: money(total) }], summary: "Смета готова к обсуждению с мастером. Все позиции и доплаты сохраняются при печати.", notes: [priceNote, "Доплаты за высоту и подпол применяются к каждому отверстию отмеченной позиции. Скидки и стоимость выезда не рассчитаны.", structureNote], data: { rows, total, count } }
+      const subtotal = rows.reduce((sum, row) => sum + row.total, 0)
+      const discount = applyQuantityDiscount(subtotal, count)
+      return {
+        metrics: [
+          { label: "Всего отверстий", value: String(count) },
+          { label: "Позиций в смете", value: String(rows.length) },
+          { label: "Бурение, ориентир", value: discount.percent > 0 ? `${money(discount.total)} (скидка ${discount.percent}%)` : money(discount.total) },
+        ],
+        summary: "Смета готова к обсуждению с мастером. Все позиции и доплаты сохраняются при печати.",
+        notes: [
+          priceNote,
+          discount.percent > 0
+            ? `Применена скидка за количество ${discount.percent}% на общее число отверстий (${count} шт.): −${money(discount.discountAmount)}. Доплаты за высоту и подпол применяются к каждому отверстию отмеченной позиции. Стоимость выезда не рассчитана.`
+            : "Доплаты за высоту и подпол применяются к каждому отверстию отмеченной позиции. Скидка за количество применяется автоматически при увеличении общего числа отверстий в смете. Стоимость выезда не рассчитана.",
+          structureNote,
+        ],
+        data: { rows, subtotal, total: discount.total, discountPercent: discount.percent, discountAmount: discount.discountAmount, count },
+      }
     }
     case "moisture": {
       const insideDew = dewPoint(input.insideTemp, input.insideHumidity)

@@ -2,12 +2,14 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai"
 import { z } from "zod"
 import {
+  applyQuantityDiscount,
   calculateHolePrice,
   faqs,
   locations,
   materialOptions,
   priceRates,
   pricingConfig,
+  quantityDiscountTiers,
   services,
   site,
   type MaterialKey,
@@ -46,6 +48,8 @@ const systemPrompt = `Тебя зовут Бит — ты ИИ-консульт�
 
 Если глубина превышает ${pricingConfig.extendedDepthThresholdMm} мм, стандартной коронки не хватает и нужен удлинитель — стоимость каждого сантиметра глубины свыше ${pricingConfig.extendedDepthThresholdMm} мм увеличивается в ${pricingConfig.extendedDepthRateMultiplier} раза. Инструмент calculate_price уже учитывает это автоматически.
 
+Скидка за количество отверстий (инструмент calculate_price уже применяет её к totalRub): ${quantityDiscountTiers.slice().sort((a, b) => a.minQuantity - b.minQuantity).map((tier) => `от ${tier.minQuantity} шт. — ${tier.percent}%`).join(", ")}. Если клиент называет количество ниже ближайшего порога, можно вежливо упомянуть, сколько отверстий останется до скидки.
+
 Работаем в населённых пунктах: ${locations.join(", ")}.
 
 Частые вопросы клиентов и ответы на них:
@@ -75,12 +79,17 @@ const tools = {
     }),
     execute: async ({ diameterMm, material, depthMm, quantity, atHeight, underFloor }) => {
       const pricePerHole = calculateHolePrice({ diameterMm, material, depthMm, atHeight, underFloor })
+      const subtotalRub = pricePerHole * quantity
+      const discount = applyQuantityDiscount(subtotalRub, quantity)
       return {
         pricePerHoleRub: pricePerHole,
         quantity,
-        totalRub: pricePerHole * quantity,
+        subtotalRub,
+        discountPercent: discount.percent,
+        discountAmountRub: discount.discountAmount,
+        totalRub: discount.total,
         minHolePriceRub: pricingConfig.minHolePrice,
-        note: "Ориентировочная стоимость. Точная цена подтверждается мастером по фото объекта и условиям доступа.",
+        note: "Ориентировочная стоимость с учётом скидки за количество (если применима). Точная цена подтверждается мастером по фото объекта и условиям доступа.",
       }
     },
   }),
