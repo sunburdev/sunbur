@@ -1,16 +1,30 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import dynamic from "next/dynamic"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { FormEvent, ReactNode } from "react"
 import { ArrowLeft, ArrowRight, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Download, FileUp, Hand, Layers3, Loader2, Plus, Printer, RotateCcw, Ruler, Send, SlidersHorizontal, Sparkles, Wind, X } from "lucide-react"
 import { FoundationView } from "@/components/foundation-view"
-import { FoundationVentCanvas } from "@/components/foundation-vent-canvas"
 import { BrandMark } from "@/components/brand-mark"
-import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, migrateFoundationProjectV1, pointOnWall, summarizeManualVents, walkContour } from "@/lib/vent-calculator"
+import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, migrateFoundationProjectV1, summarizeManualVents, walkContour } from "@/lib/vent-calculator"
 import type { ContourStep, FoundationInput, VentPlacement } from "@/lib/vent-calculator"
 import { materialOptions } from "@/lib/site-data"
 import { ContourEditor } from "@/components/foundation-contour-editor"
+import { useHistory } from "@/lib/use-history"
+
+// Konva draws to a real canvas and reaches for `window` as it loads, so the plan
+// editor is client-only. The placeholder keeps the viewport from collapsing while
+// that chunk arrives.
+const FoundationPlanCanvas = dynamic(
+  () => import("@/components/foundation-plan-canvas").then((module) => module.FoundationPlanCanvas),
+  { ssr: false, loading: () => <div className="fp-stage" role="status" aria-label="Загрузка редактора плана" /> },
+)
+
+/** Everything one Ctrl+Z should step back through: the foundation itself and any
+ *  hand-placed layout on top of it. Selection is deliberately not in here — undoing
+ *  a move should not also undo which hole was highlighted. */
+type Draft = { input: FoundationInput; manualVents: VentPlacement[] | null; manualDiameter: number | null }
 
 const STORAGE_KEY = "sunbur:vent-foundation:v1"
 const number = (value: number, digits = 1) => value.toLocaleString("ru-RU", { maximumFractionDigits: digits })
@@ -40,14 +54,14 @@ function ShapeIcon({ shape }: { shape: FoundationInput["shape"] }) {
 
 /** Renders the foundation calculator and its automatic and manual vent layouts. */
 export function VentConstructor({ children }: { children?: ReactNode }) {
-  const [input, setInput] = useState<FoundationInput>(DEFAULT_FOUNDATION)
+  const history = useHistory<Draft>({ input: DEFAULT_FOUNDATION, manualVents: null, manualDiameter: null })
+  const { input, manualVents, manualDiameter } = history.state
+  const { commit, reset: resetHistory } = history
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedWall, setSelectedWall] = useState<string | null>(null)
   const [view, setView] = useState<"3d" | "plan">("3d")
   const [airflow, setAirflow] = useState(false)
-  const [manualVents, setManualVents] = useState<VentPlacement[] | null>(null)
-  const [manualDiameter, setManualDiameter] = useState<number | null>(null)
-  const [selectedManualId, setSelectedManualId] = useState<string | null>(null)
+  const [selectedManualIds, setSelectedManualIds] = useState<string[]>([])
   const [ready, setReady] = useState(false)
   const [notice, setNotice] = useState("")
   const [question, setQuestion] = useState("")
@@ -64,88 +78,90 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
   const chosenWall = result?.geometry.walls.find((wall) => wall.id === selectedWall)
   const signature = JSON.stringify({ input, variantId: variant?.id })
 
+  // Restoring is a one-shot: `resetHistory` clears the timeline and drops any manual
+  // layout, so a second run would silently throw away work in progress. The guard makes
+  // that impossible regardless of how the effect's dependencies are compared.
+  const restored = useRef(false)
   useEffect(() => {
+    if (restored.current) return
+    restored.current = true
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
         const project = migrateFoundationProjectV1(JSON.parse(saved))
         if (project) {
-          setInput(project.input)
+          resetHistory({ input: project.input, manualVents: null, manualDiameter: null })
           setSelectedId(typeof project.selectedVariantId === "string" ? project.selectedVariantId : null)
           setNotice("Восстановлен ваш последний проект")
         }
       }
     } catch { /* A blocked or outdated local draft does not prevent calculation. */ }
     setReady(true)
-    return () => adviceAbort.current?.abort()
-  }, [])
+  }, [resetHistory])
+
+  useEffect(() => () => adviceAbort.current?.abort(), [])
 
   useEffect(() => {
     if (!ready || !validated.success) return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, input: validated.data, selectedVariantId: selectedId })) } catch { /* Storage is optional. */ }
   }, [ready, validated, selectedId])
 
-  /** Updates a foundation parameter and invalidates geometry-dependent manual edits. */
+  /** Applies a change to the foundation itself. Any parameter change can move or
+   *  invalidate hand-placed holes (shape, thickness, material...), so this always
+   *  drops back to the automatic layout rather than keeping a manual list that may
+   *  no longer match the geometry. */
+  const editInput = useCallback((change: (previous: FoundationInput) => FoundationInput, coalesce?: string) => {
+    commit((draft) => ({ input: change(draft.input), manualVents: null, manualDiameter: null }), coalesce ? { coalesce } : undefined)
+    setSelectedManualIds([])
+  }, [commit])
+
   function update<K extends keyof FoundationInput>(key: K, value: FoundationInput[K]) {
-    setInput((previous) => ({ ...previous, [key]: value }))
+    // A slider or number field fires on every keystroke; coalescing per field keeps
+    // one undo step per adjustment instead of one per character.
+    editInput((previous) => ({ ...previous, [key]: value }), `input:${String(key)}`)
     if (key === "shape" || key === "partitions") setSelectedWall(null)
-    // Any parameter change can move or invalidate hand-placed holes (shape, thickness,
-    // material...); safest is to drop back to the automatic layout rather than keep a
-    // manual list that may no longer match the geometry.
-    setManualVents(null); setManualDiameter(null); setSelectedManualId(null)
   }
 
   /** Seeds manual editing from the currently selected automatic layout. */
   function enterManualMode() {
     if (!variant) return
-    setManualVents(variant.vents.map((vent) => ({ ...vent })))
-    setManualDiameter(variant.diameterMm)
-    setSelectedManualId(null)
+    commit((draft) => ({ ...draft, manualVents: variant.vents.map((vent) => ({ ...vent })), manualDiameter: variant.diameterMm }))
+    setSelectedManualIds([])
     setView("plan")
   }
 
   /** Discards manual placement state and restores the automatic layout. */
-  function exitManualMode() { setManualVents(null); setManualDiameter(null); setSelectedManualId(null) }
-
-  /** Adds a manual vent at a projected offset on the requested wall. */
-  function placeManualVent(wallId: string, offset: number) {
-    if (!manualVents || manualVents.length >= 100) return
-    const wall = result?.geometry.walls.find((w) => w.id === wallId)
-    if (!wall) return
-    const point = pointOnWall(wall, offset)
-    let n = 1; while (manualVents.some((v) => v.id === `manual-${n}`)) n++
-    setManualVents([...manualVents, { id: `manual-${n}`, wallId, x: point.x, z: point.z, offset: Number(offset.toFixed(2)), internal: wall.internal }])
-    setSelectedManualId(`manual-${n}`)
+  function exitManualMode() {
+    commit((draft) => ({ ...draft, manualVents: null, manualDiameter: null }))
+    setSelectedManualIds([])
   }
 
-  /** Moves a manual vent and keeps its plan coordinates synchronized. */
-  function moveManualVent(id: string, offset: number) {
-    setManualVents((previous) => previous && previous.map((v) => {
-      if (v.id !== id) return v
-      const wall = result?.geometry.walls.find((w) => w.id === v.wallId)
-      if (!wall) return v
-      const point = pointOnWall(wall, offset)
-      return { ...v, offset, x: point.x, z: point.z }
-    }))
-  }
-
-  /** Removes a manual vent and clears its selection. */
-  function deleteManualVent(id: string) { setManualVents((previous) => previous && previous.filter((v) => v.id !== id)); setSelectedManualId(null) }
+  /** Records a layout the plan canvas produced. `coalesce` is the canvas's own label
+   *  for a continuing gesture, so a whole drag collapses into one undo step. */
+  const editVents = useCallback((next: VentPlacement[], coalesce?: string) => {
+    commit((draft) => ({ ...draft, manualVents: next }), coalesce ? { coalesce } : undefined)
+  }, [commit])
 
   function selectShape(shape: FoundationInput["shape"]) {
-    if (shape === "custom" && input.shape !== "custom") {
-      const { length, width } = input
-      update("shape", shape)
-      update("contour", [{ id: "c1", length, turn: "right" }, { id: "c2", length: width, turn: "right" }, { id: "c3", length, turn: "right" }, { id: "c4", length: width, turn: "right" }])
-    } else update("shape", shape)
+    setSelectedWall(null)
+    if (shape !== "custom" || input.shape === "custom") { editInput((previous) => ({ ...previous, shape })); return }
+    // Seeding the contour from the current bounding box belongs to the same edit as
+    // the shape switch: undoing once should not leave a custom shape with no contour.
+    editInput((previous) => ({
+      ...previous, shape,
+      contour: [
+        { id: "c1", length: previous.length, turn: "right" }, { id: "c2", length: previous.width, turn: "right" },
+        { id: "c3", length: previous.length, turn: "right" }, { id: "c4", length: previous.width, turn: "right" },
+      ],
+    }))
   }
 
   function updateContour(next: ContourStep[]) {
     const walk = walkContour(next)
     const xs = walk.vertices.map((v) => v.x), zs = walk.vertices.map((v) => v.z)
     const length = Math.max(...xs) - Math.min(...xs), width = Math.max(...zs) - Math.min(...zs)
-    setInput((previous) => ({ ...previous, contour: next,
-      length: length > 0 ? Number(length.toFixed(2)) : previous.length, width: width > 0 ? Number(width.toFixed(2)) : previous.width }))
+    editInput((previous) => ({ ...previous, contour: next,
+      length: length > 0 ? Number(length.toFixed(2)) : previous.length, width: width > 0 ? Number(width.toFixed(2)) : previous.width }), "contour")
   }
 
   function downloadProject() {
@@ -164,9 +180,9 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
       if (file.size > 1_000_000) throw new Error("Файл слишком большой")
       const data = migrateFoundationProjectV1(JSON.parse((await file.text()).replace(/^\uFEFF/, "")))
       if (!data) throw new Error("Неверный формат проекта")
-      setInput(data.input)
+      resetHistory({ input: data.input, manualVents: null, manualDiameter: null })
       setSelectedId(typeof data.selectedVariantId === "string" ? data.selectedVariantId : null)
-      setSelectedWall(null); setAdvice(null)
+      setSelectedWall(null); setAdvice(null); setSelectedManualIds([])
       setNotice("Проект открыт. Расчёт обновлён по текущим расценкам.")
     } catch { setNotice("Не удалось открыть файл. Выберите JSON-проект, сохранённый в этом конструкторе.") }
     if (uploadRef.current) uploadRef.current.value = ""
@@ -213,7 +229,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
 
       <div className="vc-workspace">
         <aside className="vc-controls vc-panel vc-no-print" aria-label="Параметры фундамента">
-          <div className="vc-panel-title"><h2><SlidersHorizontal size={16} /> Ваш фундамент</h2><button className="vc-icon-button" title="Сбросить параметры" aria-label="Сбросить параметры" onClick={() => { setInput(DEFAULT_FOUNDATION); setSelectedId(null); setSelectedWall(null); setAdvice(null); setNotice("Восстановлены исходные параметры") }}><RotateCcw size={15} /></button></div>
+          <div className="vc-panel-title"><h2><SlidersHorizontal size={16} /> Ваш фундамент</h2><button className="vc-icon-button" title="Сбросить параметры" aria-label="Сбросить параметры" onClick={() => { editInput(() => DEFAULT_FOUNDATION); setSelectedId(null); setSelectedWall(null); setAdvice(null); setNotice("Восстановлены исходные параметры") }}><RotateCcw size={15} /></button></div>
           <section className="vc-control-section"><h3>Форма в плане</h3><div className="vc-shapes">
             {(Object.keys(shapeNames) as FoundationInput["shape"][]).map((shape) => <button key={shape} aria-pressed={input.shape === shape} onClick={() => selectShape(shape)} className={input.shape === shape ? "is-active" : ""}><ShapeIcon shape={shape} /><span>{shapeNames[shape]}</span></button>)}
           </div></section>
@@ -242,16 +258,32 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
           <section className="vc-viewport vc-panel" aria-label="Модель фундамента">
             {result && !result.recommendedId && <div className="vc-warning vc-fit-warning" role="alert"><strong>Подходящая схема не найдена.</strong> Показана пробная раскладка с ограничениями. Проверьте высоту, отступы и размеры; причины указаны под вариантами.</div>}
             <div className="vc-viewport-toolbar vc-no-print">{manualVents ? <>
-                <div className="vc-manual-toolbar"><Hand size={15} /><span>Ручная правка</span><div className="vc-select vc-manual-diameter"><select aria-label="Диаметр для новых отверстий" value={manualDiameter ?? ""} onChange={(e) => setManualDiameter(Number(e.target.value))}>{result?.variants.map((item) => <option key={item.diameterMm} value={item.diameterMm}>Ø {item.diameterMm} мм</option>)}</select><ChevronDown size={14} /></div></div>
+                <div className="vc-manual-toolbar"><Hand size={15} /><span>Ручная правка</span><div className="vc-select vc-manual-diameter"><select aria-label="Диаметр для новых отверстий" value={manualDiameter ?? ""} onChange={(e) => commit((draft) => ({ ...draft, manualDiameter: Number(e.target.value) }))}>{result?.variants.map((item) => <option key={item.diameterMm} value={item.diameterMm}>Ø {item.diameterMm} мм</option>)}</select><ChevronDown size={14} /></div></div>
                 <button className="vc-button" onClick={exitManualMode}><X size={15} /> Сбросить к автоподбору</button>
               </> : <>
                 <div className="vc-view-switch" aria-label="Вид модели"><button className={view === "3d" ? "is-active" : ""} aria-pressed={view === "3d"} onClick={() => setView("3d")}><Box size={15} /> 3D-модель</button><button className={view === "plan" ? "is-active" : ""} aria-pressed={view === "plan"} onClick={() => setView("plan")}><Layers3 size={15} /> План сверху</button></div>
                 <button className="vc-button" disabled={!variant} onClick={enterManualMode}><Hand size={15} /> Ручная правка</button>
                 <button className={`vc-airflow ${airflow ? "is-active" : ""}`} aria-label="Направления воздуха" aria-pressed={airflow} onClick={() => setAirflow(!airflow)}><Wind size={16} /><span>Направления воздуха</span></button>
               </>}</div>
-            {manualVents && manualDiameter ? <FoundationVentCanvas geometry={result!.geometry} vents={manualVents} diameterMm={manualDiameter} selectedId={selectedManualId} onSelect={setSelectedManualId} onPlace={placeManualVent} onMove={moveManualVent} onDelete={deleteManualVent} />
+            {manualVents && manualDiameter ? <FoundationPlanCanvas
+                input={input}
+                geometry={result!.geometry}
+                vents={manualVents}
+                diameterMm={manualDiameter}
+                requiredArea={result!.requiredArea}
+                freeArea={manualResult?.freeArea ?? 0}
+                selectedIds={selectedManualIds}
+                onSelectionChange={setSelectedManualIds}
+                onChange={editVents}
+                onGestureStart={history.lock}
+                onGestureEnd={history.unlock}
+                onUndo={history.undo}
+                onRedo={history.redo}
+                canUndo={history.canUndo}
+                canRedo={history.canRedo}
+              />
               : result ? <FoundationView input={input} geometry={result.geometry} variant={variant} selectedWall={selectedWall} onSelectWall={setSelectedWall} showAirflow={airflow} view={view} /> : <div className="vc-invalid" role="alert"><Ruler size={30} /><h3>Уточните размеры</h3>{!validated.success && validated.error.issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</div>}
-            <div className="vc-model-caption">{manualVents ? <span>Щёлкните по стене — появится отверстие. Перетащите его вдоль стены, стрелками — точнее, Delete удаляет выбранное.</span> : <><span><i className="vc-dot" /> Наружный продух</span><span><i className="vc-dot vc-dot-grey" /> Переточное отверстие</span><small>{airflow ? "Стрелки условные, без расчёта воздушного потока" : "Нажмите на стену, чтобы увидеть её отверстия"}</small></>}</div>
+            <div className="vc-model-caption">{manualVents ? <span>Щёлкните по стене — появится отверстие. Тяните его вдоль стены с привязкой, выделяйте рамкой или Shift-кликом, правьте группой на панели сверху.</span> : <><span><i className="vc-dot" /> Наружный продух</span><span><i className="vc-dot vc-dot-grey" /> Переточное отверстие</span><small>{airflow ? "Стрелки условные, без расчёта воздушного потока" : "Нажмите на стену, чтобы увидеть её отверстия"}</small></>}</div>
             <div className="vc-stats" aria-live="polite"><div><span>Площадь контура</span><strong>{result ? number(result.geometry.area) : "—"}<small> м²</small></strong></div><div><span>Наружные продухи</span><strong>{activeVariant?.externalCount ?? "—"}<small> шт.</small></strong></div><div><span>Выбранный диаметр</span><strong>{activeVariant ? `Ø ${activeVariant.diameterMm}` : "—"}<small> мм</small></strong></div><div><span>Бурение, ориентир</span><strong className="vc-price">{activeVariant ? money(activeVariant.finalPrice) : "—"}{activeVariant && activeVariant.discountPercent > 0 && <small className="vc-discount-badge">-{activeVariant.discountPercent}%</small>}</strong>{activeVariant && activeVariant.discountPercent > 0 && <small className="vc-price-original">{money(activeVariant.totalPrice)}</small>}</div></div>
             {manualVents && manualResult && (!manualResult.feasible || manualResult.warnings.length > 0) && <div className="vc-warning vc-no-print" role="status">{manualResult.freeArea < result!.requiredArea - 1e-9 && <p>Не хватает {number((result!.requiredArea - manualResult.freeArea) * 10000, 0)} см² свободного сечения до цели {number(result!.requiredArea * 10000, 0)} см².</p>}{manualResult.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</div>}
           </section>
