@@ -36,7 +36,7 @@ export function nextVentId(vents: VentPlacement[]) {
 /** Materialises a vent on a wall at a given distance from that wall's start. */
 export function ventAt(id: string, wall: FoundationWall, offset: number): VentPlacement {
   const point = pointOnWall(wall, offset)
-  return { id, wallId: wall.id, x: point.x, z: point.z, offset: Number(offset.toFixed(3)), internal: wall.internal }
+  return { id, wallId: wall.id, x: point.x, z: point.z, offset, internal: wall.internal }
 }
 
 export type SnapKind = "middle" | "margin" | "mirror" | "pitch"

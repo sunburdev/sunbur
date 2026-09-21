@@ -235,16 +235,25 @@ export function FoundationPlanCanvas({
     }
   }
 
-  function stagePointerUp(event: Konva.KonvaEventObject<PointerEvent>) {
+  const finishDrag = useCallback((pointerId?: number) => {
     const state = drag.current
-    if (state && event.evt.pointerId === state.pointerId) {
-      drag.current = null
-      setSnapHint(null)
-      onGestureEnd()
-    }
+    if (!state || (pointerId !== undefined && pointerId !== state.pointerId)) return
+    drag.current = null
+    setSnapHint(null)
+    onGestureEnd()
+  }, [onGestureEnd])
+
+  const clearSelectionBand = useCallback((pointerId?: number) => {
+    const start = bandStart.current
+    if (!start || (pointerId !== undefined && pointerId !== start.pointerId)) return
+    bandStart.current = null
+    setBand(null)
+  }, [])
+
+  function stagePointerUp(event: Konva.KonvaEventObject<PointerEvent>) {
+    finishDrag(event.evt.pointerId)
     const start = bandStart.current
     if (start && event.evt.pointerId === start.pointerId) {
-      bandStart.current = null
       if (band) {
         const low = { x: Math.min(band.fromX, band.toX), z: Math.min(band.fromZ, band.toZ) }
         const high = { x: Math.max(band.fromX, band.toX), z: Math.max(band.fromZ, band.toZ) }
@@ -253,9 +262,28 @@ export function FoundationPlanCanvas({
           .map((vent) => vent.id)
         commitSelection(event.evt.shiftKey ? [...selectedIds, ...caught] : caught)
       }
-      setBand(null)
+      clearSelectionBand(event.evt.pointerId)
     }
   }
+
+  useEffect(() => {
+    const release = (event: PointerEvent) => {
+      finishDrag(event.pointerId)
+      clearSelectionBand(event.pointerId)
+    }
+    const blur = () => {
+      finishDrag()
+      clearSelectionBand()
+    }
+    window.addEventListener("pointerup", release)
+    window.addEventListener("pointercancel", release)
+    window.addEventListener("blur", blur)
+    return () => {
+      window.removeEventListener("pointerup", release)
+      window.removeEventListener("pointercancel", release)
+      window.removeEventListener("blur", blur)
+    }
+  }, [clearSelectionBand, finishDrag])
 
   function zoomAt(factor: number, anchor?: { x: number; y: number }) {
     setViewport((current) => {

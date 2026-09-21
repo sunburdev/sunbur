@@ -33,7 +33,7 @@ export function useHistory<T>(initial: T, limit = 120) {
       if (Object.is(value, present.value)) return current
       const frame = { value, key, at: Date.now() }
       const mergeable = key !== null && key === present.key && (locked.current || Date.now() - present.at < COALESCE_WINDOW_MS)
-      if (mergeable) return { ...current, present: frame }
+      if (mergeable) return { ...current, present: frame, future: [] }
       return { past: [...past, present].slice(-limit), present: frame, future: [] }
     })
   }, [limit])
