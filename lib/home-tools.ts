@@ -52,6 +52,10 @@ export function dewPoint(temp: number, humidity: number) {
 }
 const vaporPressure = (temp: number, humidity: number) => 6.112 * Math.exp(17.62 * temp / (243.12 + temp)) * humidity / 100
 
+/**
+ * Validates tool input and returns calculated metrics, guidance, and detailed result data.
+ * @throws {z.ZodError} When the input fails the schema for its tool kind.
+ */
 export function calculateHomeTool(raw: ToolInput): ToolResult {
   const input = toolInputSchema.parse(raw)
   switch (input.kind) {

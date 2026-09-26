@@ -15,6 +15,7 @@ import { ToolDiameterFields, ToolDiameterComparison } from "./tool-diameter-sele
 function MaterialField({ value, onChange }: { value: string; onChange: (value: EstimateRow["material"]) => void }) {
   return <label className="tools-field"><span>Материал</span><select value={value} onChange={event => onChange(event.target.value as EstimateRow["material"])}>{materialOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
 }
+/** Renders the standard crown sizes and reports the selected diameter in millimeters. */
 function DiameterField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   return <label className="tools-field"><span>Диаметр</span><select value={value} onChange={event => onChange(Number(event.target.value))}>{crownDiameters.map(size => <option key={size} value={size}>Ø {size} мм</option>)}</select></label>
 }

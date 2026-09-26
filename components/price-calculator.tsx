@@ -37,8 +37,10 @@ const MAX_ROWS = 10
 
 const diameterItems = crownDiameters.map((diameter) => ({ value: diameter, label: `Ø ${diameter} мм` }))
 
+/** Formats an amount in rubles using Russian number formatting. */
 const rub = (value: number) => `${value.toLocaleString("ru-RU")} ₽`
 
+/** Returns the Russian singular or plural form of “hole” for an integer count. */
 const holesWord = (count: number) => {
   const mod10 = count % 10
   const mod100 = count % 100
@@ -47,18 +49,22 @@ const holesWord = (count: number) => {
   return "отверстий"
 }
 
+/** Returns a lowercase material label, falling back to the material key. */
 const materialLabel = (material: MaterialKey) =>
   materialOptions.find((option) => option.value === material)?.label.toLowerCase() ?? material
 
+/** Renders up to ten drilling positions with a discount based on their combined hole count. */
 export function PriceCalculator() {
   const nextId = useRef(2)
   const [rows, setRows] = useState<CalculatorRow[]>([
     { id: 1, diameterMm: 132, material: "brick", depthMm: "250", quantity: "1", atHeight: false, underFloor: false },
   ])
 
+  /** Merges changed fields into the position with the given ID. */
   const updateRow = (id: number, patch: Partial<CalculatorRow>) =>
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))
 
+  /** Copies the last position with a new ID and quantity of one, up to the row limit. */
   const addRow = () =>
     setRows((current) => {
       if (current.length >= MAX_ROWS) return current
@@ -67,6 +73,7 @@ export function PriceCalculator() {
       return [...current, { ...last, id: nextId.current++, quantity: "1" }]
     })
 
+  /** Removes the position with the given ID while retaining at least one position. */
   const removeRow = (id: number) =>
     setRows((current) => (current.length > 1 ? current.filter((row) => row.id !== id) : current))
 

@@ -113,10 +113,11 @@ export function applyQuantityDiscount(subtotal: number, quantity: number) {
   return { percent, discountAmount, total: subtotal - discountAmount }
 }
 
-// priceRates lists anchor diameters only. Standard crowns in between (120, 127,
-// 142…) are priced by linear interpolation between the neighbouring anchors;
-// anything up to the first anchor uses its rate ("до 52 мм"), anything above
-// the last one uses the last rate.
+/**
+ * Returns the material's rate in rubles per centimeter for a diameter in millimeters.
+ * Interpolates linearly between tariff diameters, preserving exact tariff rates.
+ * Diameters outside the tariff range use the nearest endpoint's rate.
+ */
 export function getRatePerCm(diameterMm: number, material: MaterialKey) {
   const first = priceRates[0]
   const last = priceRates[priceRates.length - 1]
@@ -129,6 +130,11 @@ export function getRatePerCm(diameterMm: number, material: MaterialKey) {
   return lower[material] + (upper[material] - lower[material]) * t
 }
 
+/**
+ * Returns the rounded price in rubles for one hole, with diameter and depth in millimeters.
+ * Applies the standard-depth minimum, extra-depth charge, hard-material multiplier,
+ * and selected work-condition surcharges before any quantity discount.
+ */
 export function calculateHolePrice({
   diameterMm,
   material,
