@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 const { calculateHomeTool, defaultToolInput, defaultRow, dewPoint, toolInputSchema } = await import("../lib/home-tools.ts")
-const { applyQuantityDiscount, calculateHolePrice } = await import("../lib/site-data.ts")
+const { applyQuantityDiscount, calculateHolePrice, getRatePerCm, priceRates } = await import("../lib/site-data.ts")
 const { toolsCatalog } = await import("../lib/tools-catalog.ts")
 
 test("all catalog tools have valid defaults and finite results", () => {
@@ -57,7 +57,7 @@ test("sealant accounts for annulus volume, all seams, quantities, waste and whol
   assert.equal(two.packages, 2)
   assert.ok(two.remainderMl >= 0 && two.remainderMl < 310)
 })
-test("hole sizing includes both sides, never rounds down or invents a price", () => {
+test("hole sizing includes both sides, never rounds down, and has no price without a crown", () => {
   const input = { ...defaultToolInput("diameter"), pipe: 110, insulation: 10, sleeve: 3, clearance: 5 }
   assert.equal(calculateHomeTool(input).data.required, 146)
   assert.equal(calculateHomeTool(input).data.selected, 152)
@@ -73,7 +73,7 @@ test("110 mm pipe selects 112, 120, 122, 127 or 132 according to explicit cleara
     assert.equal(result.selected, selected)
     assert.equal(result.actualClearance, actualClearance)
     assert.equal(result.required, 110 + 2 * clearance)
-    assert.equal(result.cost === null, [120,122,127].includes(selected))
+    assert.ok(Number.isFinite(result.cost))
   }
 })
 
@@ -82,7 +82,7 @@ test("diameter comparison includes actual gaps and supports a larger manual choi
   assert.equal(result.minimum, 112)
   assert.equal(result.selected, 120)
   assert.equal(result.actualClearance, 5)
-  assert.equal(result.cost, null)
+  assert.equal(result.cost, calculateHolePrice({ diameterMm: 120, material: "concrete", depthMm: 300, atHeight: false, underFloor: false }))
   assert.equal(result.options.find(option => option.diameter === 132).clearance, 11)
   const invalidChoice = calculateHomeTool({ ...defaultToolInput("diameter"), clearance: 10, preferredDiameter: 112 }).data
   assert.equal(invalidChoice.minimum, 132)
@@ -157,4 +157,18 @@ test("invalid inputs, oversized lists and forged data are rejected", () => {
     { ...defaultToolInput("photo"), markers: [{ x: 101, y: 50, diameter: 132, depth: 300, material: "brick", note: "" }] },
     { ...defaultToolInput("diameter"), totalPrice: 0 },
   ]) assert.equal(toolInputSchema.safeParse(input).success, false)
+})
+
+test("standard crowns between tariff rows are priced by interpolation between neighbours", () => {
+  for (const row of priceRates) assert.equal(getRatePerCm(row.diameterMm, "brick"), row.brick)
+  assert.equal(getRatePerCm(32, "concrete"), 30)
+  assert.equal(getRatePerCm(122, "concrete"), 43.5)
+  const r120 = getRatePerCm(120, "brick")
+  assert.ok(r120 > 37 && r120 < 40)
+  const mixed = calculateHomeTool({ kind: "estimate", rows: [
+    { ...defaultRow, diameter: 120, material: "concrete", quantity: 1 },
+    { ...defaultRow, diameter: 132, material: "brick", quantity: 4 },
+  ] })
+  assert.equal(mixed.data.count, 5)
+  assert.equal(mixed.data.discountPercent, 5)
 })

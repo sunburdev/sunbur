@@ -113,6 +113,22 @@ export function applyQuantityDiscount(subtotal: number, quantity: number) {
   return { percent, discountAmount, total: subtotal - discountAmount }
 }
 
+// priceRates lists anchor diameters only. Standard crowns in between (120, 127,
+// 142…) are priced by linear interpolation between the neighbouring anchors;
+// anything up to the first anchor uses its rate ("до 52 мм"), anything above
+// the last one uses the last rate.
+export function getRatePerCm(diameterMm: number, material: MaterialKey) {
+  const first = priceRates[0]
+  const last = priceRates[priceRates.length - 1]
+  if (diameterMm <= first.diameterMm) return first[material]
+  if (diameterMm >= last.diameterMm) return last[material]
+  const upperIndex = priceRates.findIndex((row) => row.diameterMm >= diameterMm)
+  const upper = priceRates[upperIndex]
+  const lower = priceRates[upperIndex - 1]
+  const t = (diameterMm - lower.diameterMm) / (upper.diameterMm - lower.diameterMm)
+  return lower[material] + (upper[material] - lower[material]) * t
+}
+
 export function calculateHolePrice({
   diameterMm,
   material,
@@ -126,8 +142,7 @@ export function calculateHolePrice({
   atHeight: boolean
   underFloor: boolean
 }) {
-  const rateRow = priceRates.find((row) => row.diameterMm === diameterMm) ?? priceRates[0]
-  const ratePerCm = rateRow[material]
+  const ratePerCm = getRatePerCm(diameterMm, material)
   const depthCm = depthMm / 10
   const thresholdCm = pricingConfig.extendedDepthThresholdMm / 10
   const normalCm = Math.min(depthCm, thresholdCm)
