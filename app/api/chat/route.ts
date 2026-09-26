@@ -1,13 +1,13 @@
 import { createOpenAI } from "@ai-sdk/openai"
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai"
 import { z } from "zod"
+import { crownDiameters } from "@/lib/diameter-catalog"
 import {
   applyQuantityDiscount,
   calculateHolePrice,
   faqs,
   locations,
   materialOptions,
-  priceRates,
   pricingConfig,
   quantityDiscountTiers,
   services,
@@ -42,7 +42,7 @@ const systemPrompt = `Тебя зовут Бит — ты ИИ-консульт�
 
 Услуги компании: ${services.map((s) => s.title).join(", ")}.
 
-Материалы и диаметры, с которыми работаем: ${priceRates.map((r) => r.diameterLabel).join(", ")}. Материалы: ${materialOptions.map((m) => m.label).join(", ")}.
+Диаметры коронок, с которыми работаем: ${crownDiameters.join(", ")} мм. Материалы: ${materialOptions.map((m) => m.label).join(", ")}.
 
 Минимальная стоимость одного отверстия — ${pricingConfig.minHolePrice} ₽. Доплата за работу на высоте — ${pricingConfig.heightSurcharge} ₽, в подполе — ${pricingConfig.underFloorSurcharge} ₽.
 
@@ -59,7 +59,7 @@ ${faqs.map(([q, a]) => `— ${q} ${a}`).join("\n")}
 
 Если вопрос не про бурение отверстий или услуги компании — вежливо верни разговор к теме. Если не хватает данных для расчёта (диаметр, материал, глубина) — уточни их у клиента, прежде чем вызывать инструмент. Итоговая цена calculate_price — ориентировочная; всегда уточняй, что точную стоимость мастер подтвердит по фото объекта. Для оформления заявки предлагай позвонить или написать в WhatsApp/Telegram.`
 
-const diameterLiterals = priceRates.map((r) => z.literal(r.diameterMm)) as [
+const diameterLiterals = crownDiameters.map((size) => z.literal(size)) as [
   z.ZodLiteral<number>,
   z.ZodLiteral<number>,
   ...z.ZodLiteral<number>[],

@@ -48,7 +48,7 @@ for (const { id: kind } of toolsCatalog) test(`${kind} sends recomputed context 
   if (kind === "diameter") {
     assert.equal(context.serverResult.data.selected, 112)
     assert.equal(context.serverResult.data.options.find(option => option.diameter === 120).clearance, 5)
-    assert.equal(context.serverResult.data.options.find(option => option.diameter === 120).cost, null)
+    assert.ok(Number.isFinite(context.serverResult.data.options.find(option => option.diameter === 120).cost))
     assert.ok(context.serverResult.data.sources.length >= 2)
   }
 })

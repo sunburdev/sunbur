@@ -113,6 +113,28 @@ export function applyQuantityDiscount(subtotal: number, quantity: number) {
   return { percent, discountAmount, total: subtotal - discountAmount }
 }
 
+/**
+ * Returns the material's rate in rubles per centimeter for a diameter in millimeters.
+ * Interpolates linearly between tariff diameters, preserving exact tariff rates.
+ * Diameters outside the tariff range use the nearest endpoint's rate.
+ */
+export function getRatePerCm(diameterMm: number, material: MaterialKey) {
+  const first = priceRates[0]
+  const last = priceRates[priceRates.length - 1]
+  if (diameterMm <= first.diameterMm) return first[material]
+  if (diameterMm >= last.diameterMm) return last[material]
+  const upperIndex = priceRates.findIndex((row) => row.diameterMm >= diameterMm)
+  const upper = priceRates[upperIndex]
+  const lower = priceRates[upperIndex - 1]
+  const t = (diameterMm - lower.diameterMm) / (upper.diameterMm - lower.diameterMm)
+  return lower[material] + (upper[material] - lower[material]) * t
+}
+
+/**
+ * Returns the rounded price in rubles for one hole, with diameter and depth in millimeters.
+ * Applies the standard-depth minimum, extra-depth charge, hard-material multiplier,
+ * and selected work-condition surcharges before any quantity discount.
+ */
 export function calculateHolePrice({
   diameterMm,
   material,
@@ -126,8 +148,7 @@ export function calculateHolePrice({
   atHeight: boolean
   underFloor: boolean
 }) {
-  const rateRow = priceRates.find((row) => row.diameterMm === diameterMm) ?? priceRates[0]
-  const ratePerCm = rateRow[material]
+  const ratePerCm = getRatePerCm(diameterMm, material)
   const depthCm = depthMm / 10
   const thresholdCm = pricingConfig.extendedDepthThresholdMm / 10
   const normalCm = Math.min(depthCm, thresholdCm)

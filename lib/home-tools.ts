@@ -1,11 +1,11 @@
 import { z } from "zod"
-import { applyQuantityDiscount, calculateHolePrice, priceRates } from "./site-data"
+import { applyQuantityDiscount, calculateHolePrice } from "./site-data"
 import { equipmentCatalog, type ToolId } from "./tools-catalog"
 import { crownDiameters, diameterSources, type DiameterOption } from "./diameter-catalog"
 
 const number = (min: number, max: number) => z.number().finite().min(min).max(max)
 const material = z.enum(["brick", "concrete", "reinforced"])
-const diameter = number(1, 250).refine(value => priceRates.some(rate => rate.diameterMm === value), "Выберите доступный диаметр")
+const diameter = number(1, 250).refine(value => crownDiameters.some(size => size === value), "Выберите доступный диаметр")
 const work = { material, depth: number(50, 2000), atHeight: z.boolean(), underFloor: z.boolean() }
 export const estimateRowSchema = z.object({ ...work, diameter, quantity: number(1, 100).int() }).strict()
 export const markerSchema = z.object({ x: number(0, 100), y: number(0, 100), diameter, depth: number(50, 2000), material, note: z.string().max(240) }).strict()
@@ -52,6 +52,10 @@ export function dewPoint(temp: number, humidity: number) {
 }
 const vaporPressure = (temp: number, humidity: number) => 6.112 * Math.exp(17.62 * temp / (243.12 + temp)) * humidity / 100
 
+/**
+ * Validates tool input and returns calculated metrics, guidance, and detailed result data.
+ * @throws {z.ZodError} When the input fails the schema for its tool kind.
+ */
 export function calculateHomeTool(raw: ToolInput): ToolResult {
   const input = toolInputSchema.parse(raw)
   switch (input.kind) {
@@ -80,14 +84,14 @@ export function calculateHomeTool(raw: ToolInput): ToolResult {
     case "diameter": {
       const assemblyDiameter = input.pipe + 2 * (input.insulation + input.sleeve)
       const required = assemblyDiameter + 2 * input.clearance
-      const options: DiameterOption[] = crownDiameters.map(diameter => ({ diameter, clearance: (diameter - assemblyDiameter) / 2, fits: diameter >= required, cost: priceRates.some(row => row.diameterMm === diameter) ? price(diameter, input) : null }))
+      const options: DiameterOption[] = crownDiameters.map(diameter => ({ diameter, clearance: (diameter - assemblyDiameter) / 2, fits: diameter >= required, cost: price(diameter, input) }))
       const minimum = options.find(option => option.fits)?.diameter ?? null
       const requested = input.preferredDiameter || minimum
       const choice = options.find(option => option.diameter === requested && option.fits)
       const selected = choice?.diameter ?? null
       const cost = choice?.cost ?? null
       const actualClearance = choice?.clearance ?? null
-      return { metrics: [{ label: "Минимум по параметрам", value: `${fmt(required)} мм` }, { label: input.preferredDiameter ? "Выбранная коронка" : "Ближайшая из справочника", value: selected ? `Ø ${selected} мм` : "Нет подходящей" }, { label: "Бурение одного отверстия", value: cost === null ? "Уточнить цену" : money(cost) }], summary: choice ? `Ø${selected}: зазор ${fmt(choice.clearance)} мм на сторону при заданном минимуме ${fmt(input.clearance)} мм.` : input.preferredDiameter ? `Выбранная коронка Ø${input.preferredDiameter} не вмещает узел с заданным зазором. Выберите другой размер.` : "В справочнике до Ø250 мм нет размера для заданного узла. Нужен индивидуальный подбор.", notes: ["Меньший подходящий диаметр — геометрический подбор, а не готовое монтажное решение. Зазор 1 мм по умолчанию — пример тесного прохода; допустимость зависит от допусков трубы, отверстия, длины прохода и способа заделки.", "Учитывайте самую широкую часть, которая должна пройти через отверстие: раструб, фитинг или изоляцию. Номинал трубы не заменяет замер наружного диаметра.", "При гильзе задайте её стенку и суммарные зазоры внутри и снаружи; для готовой гильзы или уплотнения используйте фактические размеры из инструкции. Не увеличивайте отверстие для систем с фиксированным монтажным размером.", "Справочник коронок отделён от прайс-листа. Для размеров без точного тарифа цена не рассчитывается; наличие инструмента уточняется у мастера.", structureNote, priceNote], data: { assemblyDiameter, required, minimum, selected, actualClearance, cost, options, sources: diameterSources } }
+      return { metrics: [{ label: "Минимум по параметрам", value: `${fmt(required)} мм` }, { label: input.preferredDiameter ? "Выбранная коронка" : "Ближайшая из справочника", value: selected ? `Ø ${selected} мм` : "Нет подходящей" }, { label: "Бурение одного отверстия", value: cost === null ? "Уточнить цену" : money(cost) }], summary: choice ? `Ø${selected}: зазор ${fmt(choice.clearance)} мм на сторону при заданном минимуме ${fmt(input.clearance)} мм.` : input.preferredDiameter ? `Выбранная коронка Ø${input.preferredDiameter} не вмещает узел с заданным зазором. Выберите другой размер.` : "В справочнике до Ø250 мм нет размера для заданного узла. Нужен индивидуальный подбор.", notes: ["Меньший подходящий диаметр — геометрический подбор, а не готовое монтажное решение. Зазор 1 мм по умолчанию — пример тесного прохода; допустимость зависит от допусков трубы, отверстия, длины прохода и способа заделки.", "Учитывайте самую широкую часть, которая должна пройти через отверстие: раструб, фитинг или изоляцию. Номинал трубы не заменяет замер наружного диаметра.", "При гильзе задайте её стенку и суммарные зазоры внутри и снаружи; для готовой гильзы или уплотнения используйте фактические размеры из инструкции. Не увеличивайте отверстие для систем с фиксированным монтажным размером.", "Для размеров между строками прайс-листа цена рассчитывается по соседним тарифам; наличие коронки уточняется у мастера.", structureNote, priceNote], data: { assemblyDiameter, required, minimum, selected, actualClearance, cost, options, sources: diameterSources } }
     }
     case "slope": {
       const drop = input.length * input.slope
@@ -100,9 +104,9 @@ export function calculateHomeTool(raw: ToolInput): ToolResult {
       const model = equipmentCatalog.find(item => item.id === input.model)
       const required = model?.diameter ?? input.customDiameter
       // Manufacturer hole dimensions must not be silently rounded up to another crown.
-      const selected = priceRates.find(row => row.diameterMm === required)?.diameterMm ?? null
+      const selected = crownDiameters.find(size => size === required) ?? null
       const cost = selected ? price(selected, input) : null
-      return { metrics: [{ label: "Отверстие по инструкции", value: `Ø ${required} мм` }, { label: "Толщина стены", value: `${input.depth} мм` }, { label: "Бурение", value: cost === null ? "По согласованию" : money(cost) }], summary: `${model?.name ?? "Ваш прибор"}: ${selected ? "диаметр есть в тарифной сетке." : "уточните наличие коронки; увеличивать диаметр без согласования нельзя."}`, notes: [model?.note ?? "Размер введён пользователем. Проверьте инструкцию производителя.", "Допустимую толщину стены, уклон, отступы и крепления проверьте по монтажной схеме. Прибор, электрика и установка в цену не входят.", structureNote, priceNote], data: { required, selected, cost, model: model ?? null } }
+      return { metrics: [{ label: "Отверстие по инструкции", value: `Ø ${required} мм` }, { label: "Толщина стены", value: `${input.depth} мм` }, { label: "Бурение", value: cost === null ? "По согласованию" : money(cost) }], summary: `${model?.name ?? "Ваш прибор"}: ${selected ? "такая коронка есть в справочнике." : "уточните наличие коронки; увеличивать диаметр без согласования нельзя."}`, notes: [model?.note ?? "Размер введён пользователем. Проверьте инструкцию производителя.", "Допустимую толщину стены, уклон, отступы и крепления проверьте по монтажной схеме. Прибор, электрика и установка в цену не входят.", structureNote, priceNote], data: { required, selected, cost, model: model ?? null } }
     }
     case "estimate": {
       const rows = input.rows.map(row => ({ ...row, unitPrice: price(row.diameter, row), total: price(row.diameter, row) * row.quantity }))

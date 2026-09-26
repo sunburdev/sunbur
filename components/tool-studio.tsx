@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react"
 import { ArrowRight, Download, Loader2, Plus, Printer, RotateCcw, Send, Sparkles, Trash2, Upload } from "lucide-react"
 import { calculateHomeTool, defaultRow, defaultToolInput, fmt, money, toolInputSchema, type EstimateRow, type PhotoMarker, type ToolInput } from "@/lib/home-tools"
 import { equipmentCatalog, toolsCatalog, toolPath, type ToolId } from "@/lib/tools-catalog"
-import { materialOptions, priceRates } from "@/lib/site-data"
+import { materialOptions } from "@/lib/site-data"
+import { crownDiameters } from "@/lib/diameter-catalog"
 import { ToolDiagram } from "./tool-diagram"
 import { ToolPrintParameters } from "./tool-print-parameters"
 import { NumberField } from "./tool-number-field"
@@ -14,8 +15,9 @@ import { ToolDiameterFields, ToolDiameterComparison } from "./tool-diameter-sele
 function MaterialField({ value, onChange }: { value: string; onChange: (value: EstimateRow["material"]) => void }) {
   return <label className="tools-field"><span>Материал</span><select value={value} onChange={event => onChange(event.target.value as EstimateRow["material"])}>{materialOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
 }
+/** Renders the standard crown sizes and reports the selected diameter in millimeters. */
 function DiameterField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return <label className="tools-field"><span>Диаметр</span><select value={value} onChange={event => onChange(Number(event.target.value))}>{priceRates.map(item => <option key={item.diameterMm} value={item.diameterMm}>Ø {item.diameterMm} мм</option>)}</select></label>
+  return <label className="tools-field"><span>Диаметр</span><select value={value} onChange={event => onChange(Number(event.target.value))}>{crownDiameters.map(size => <option key={size} value={size}>Ø {size} мм</option>)}</select></label>
 }
 function WorkFields({ value, onChange }: { value: Pick<EstimateRow, "depth" | "material" | "atHeight" | "underFloor">; onChange: (patch: object) => void }) {
   return <><div className="tools-field-grid"><MaterialField value={value.material} onChange={material => onChange({ material })} /><NumberField label="Толщина стены" value={value.depth} onChange={depth => onChange({ depth })} min={50} max={2000} unit="мм" /></div><div className="tools-checks"><label><input type="checkbox" checked={value.atHeight} onChange={e => onChange({ atHeight: e.target.checked })} /> На высоте</label><label><input type="checkbox" checked={value.underFloor} onChange={e => onChange({ underFloor: e.target.checked })} /> В подполе</label></div></>
