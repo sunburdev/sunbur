@@ -117,9 +117,9 @@ export function Hero() {
               sizes="(max-width: 1024px) 100vw, 48vw"
               className="object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/70 via-transparent to-background/20" />
+            <div className="absolute inset-0 bg-gradient-to-t from-scrim/70 via-transparent to-scrim/20" />
             {/* Bore reticle overlay */}
-            <BoreReticle className="absolute right-5 top-5 size-24 text-background sm:size-28" />
+            <BoreReticle className="absolute right-5 top-5 size-24 text-scrim sm:size-28" />
             {/* Scanning line */}
             <div className="absolute inset-x-0 top-1/2 h-px animate-scan bg-primary/70" />
             {/* Corner ticks + telemetry */}
@@ -399,11 +399,11 @@ export function ContactCTA() {
         <div className="flex max-w-2xl flex-col gap-4">
           <span className="font-mono text-xs font-bold uppercase tracking-[0.22em]">Связаться с мастером</span>
           <h2 className="text-balance text-3xl font-black tracking-tight sm:text-5xl">Нужно сделать отверстие?</h2>
-          <p className="text-pretty text-base leading-relaxed text-primary-foreground/80 sm:text-lg">
+          <p className="text-pretty text-base leading-relaxed text-primary-foreground sm:text-lg">
             Позвоните или пришлите фото места бурения в WhatsApp или Telegram — рассчитаем стоимость.
           </p>
           <a href={`tel:${site.phone}`} className="font-mono text-2xl font-black sm:text-4xl">{site.phoneDisplay}</a>
-          <a href={`mailto:${site.email}`} className="flex items-center gap-2 text-sm font-medium text-primary-foreground/80 transition-colors hover:text-primary-foreground">
+          <a href={`mailto:${site.email}`} className="flex items-center gap-2 text-sm font-medium text-primary-foreground underline-offset-4 hover:underline">
             <Mail className="size-4" />
             {site.email}
           </a>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { BrandMark } from "@/components/brand-mark"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { VentAuditPlan } from "./vent-audit-plan"
 import { VentAuditAssistant } from "./vent-audit-assistant"
 import { auditContext, auditProjectSchema, calculateAudit, inspectSystem, migrateAuditProject, newAuditProject, newOpening, openingSize, wallLength, type AuditProject, type Opening } from "@/lib/vent-audit"
@@ -123,7 +124,7 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
   }
   const stepNames = ["Ваш фундамент", "Ваши продухи", "Что улучшить"]
   return <div className="vent-studio va-screen">
-    <header className="va-header va-no-print"><Link href="/" className="va-brand"><BrandMark /> SUNBUR</Link><span>Понятные инструменты для дома</span><Link href="/uslugi/produhi-v-fundamente">Об услуге</Link></header>
+    <header className="va-header va-no-print"><Link href="/" className="va-brand"><BrandMark /> SUNBUR</Link><span>Понятные инструменты для дома</span><Link href="/uslugi/produhi-v-fundamente">Об услуге</Link><ThemeToggle /></header>
     <main className="va-main">
       <div className="va-intro"><div><p className="va-eyebrow">ПРОВЕРИМ ВАШ ДОМ ВМЕСТЕ</p><h1>Хватает ли продухов<br />в вашем фундаменте?</h1><p>Покажите, что уже есть. Подскажем, что оставить,<br className="va-desktop" /> где добавить и какие отверстия можно рассмотреть для расширения.</p></div><div className="va-project-tools va-no-print"><Button variant="outline" onClick={() => upload.current?.click()}><FileUp data-icon="inline-start" />Открыть</Button><Button variant="outline" onClick={download} disabled={!validated.success}><Download data-icon="inline-start" />Сохранить</Button><input ref={upload} hidden type="file" accept=".json,application/json" aria-label="Открыть проект" onChange={e => void importFile(e.target.files?.[0])} /></div></div>
       <div className="va-mode-note va-no-print"><span><Check aria-hidden="true" /> Проверяю существующие продухи</span><Button variant="link" onClick={onLegacy}>У меня пока нет продухов →</Button></div>

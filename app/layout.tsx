@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import Script from "next/script"
 import { ChatWidget } from "@/components/chat-widget"
+import { ThemeSync } from "@/components/theme-toggle"
+import { THEME_COLORS, themeInitScript } from "@/lib/theme"
 import "./globals.css"
 
 const geist = Geist({ subsets: ["latin", "cyrillic"], variable: "--font-geist" })
@@ -17,12 +19,16 @@ export const metadata: Metadata = {
   verification: { yandex: "d24cf922ccc237f1" },
 }
 
-export const viewport: Viewport = { colorScheme: "dark", themeColor: "#1a1a1f", width: "device-width", initialScale: 1, userScalable: true }
+export const viewport: Viewport = { colorScheme: "dark light", themeColor: THEME_COLORS.dark, width: "device-width", initialScale: 1, userScalable: true }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ru" className={`bg-background ${geist.variable} ${geistMono.variable}`}>
+    <html lang="ru" data-theme="dark" className={`bg-background ${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="font-sans antialiased">
+        <ThemeSync />
         {children}
         <ChatWidget />
         <Script

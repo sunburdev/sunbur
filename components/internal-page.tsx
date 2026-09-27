@@ -40,7 +40,7 @@ export function InternalHero({ content, crumbs, showVentCalculator = false }: { 
           <Reveal delay={150} className="relative">
             <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-card">
               <Image src={content.image} alt={content.imageAlt} fill priority sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-scrim/60 via-transparent to-transparent" />
             </div>
             <div className="absolute -left-3 -top-3 size-6 border-l-2 border-t-2 border-primary" aria-hidden="true" />
             <div className="absolute -bottom-3 -right-3 size-6 border-b-2 border-r-2 border-primary" aria-hidden="true" />
@@ -120,7 +120,7 @@ function RichBlocks({ content }: { content: PageContent }) {
                 <div className={`relative ${block.reverse ? "lg:order-1" : ""}`}>
                   <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-card">
                     <Image src={block.image} alt={block.imageAlt ?? ""} fill sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/40 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-scrim/40 via-transparent to-transparent" />
                   </div>
                   <div className="absolute -left-3 -top-3 size-6 border-l-2 border-t-2 border-primary" aria-hidden="true" />
                   <div className="absolute -bottom-3 -right-3 size-6 border-b-2 border-r-2 border-primary" aria-hidden="true" />

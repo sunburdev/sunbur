@@ -40,7 +40,7 @@ export function BlogHero({ post, crumbs }: { post: BlogPost; crumbs: { label: st
         <Reveal delay={120} className="relative mt-2">
           <div className="relative aspect-[16/9] overflow-hidden rounded-2xl border border-border bg-card">
             <Image src={post.image} alt={post.imageAlt} fill priority sizes="(max-width: 1024px) 100vw, 64rem" className="object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/50 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-scrim/50 via-transparent to-transparent" />
           </div>
           <div className="absolute -left-3 -top-3 size-6 border-l-2 border-t-2 border-primary" aria-hidden="true" />
           <div className="absolute -bottom-3 -right-3 size-6 border-b-2 border-r-2 border-primary" aria-hidden="true" />
@@ -214,7 +214,7 @@ export function BlogCard({ post, delay = 0 }: { post: BlogPost; delay?: number }
       >
         <div className="relative aspect-[16/10] overflow-hidden bg-background">
           <Image src={post.image} alt={post.imageAlt} fill sizes="(max-width: 1024px) 100vw, 24rem" className="object-cover transition-transform duration-500 group-hover:scale-105" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-scrim/60 via-transparent to-transparent" />
           <span className="absolute left-4 top-4 rounded-full border border-primary/40 bg-background/80 px-3 py-1 font-mono text-[0.65rem] font-bold uppercase tracking-wider text-primary backdrop-blur">
             {post.category}
           </span>

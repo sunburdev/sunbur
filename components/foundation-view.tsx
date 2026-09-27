@@ -235,10 +235,10 @@ export function FoundationView({
         <defs>
           <filter id={`${uniqueId}-shadow`} x="-20%" y="-20%" width="140%" height="160%"><feGaussianBlur stdDeviation="13" /></filter>
           <pattern id={`${uniqueId}-concrete`} width="19" height="23" patternUnits="userSpaceOnUse">
-            <circle cx="4" cy="7" r="0.6" fill="#817e77" opacity="0.2" />
-            <circle cx="14" cy="18" r="0.4" fill="#817e77" opacity="0.2" />
+            <circle cx="4" cy="7" r="0.6" fill="var(--sc-grain)" opacity="0.2" />
+            <circle cx="14" cy="18" r="0.4" fill="var(--sc-grain)" opacity="0.2" />
           </pattern>
-          <marker id={`${uniqueId}-arrow`} markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto"><path d="M1 1 L5.5 3.5 L1 6" fill="none" stroke="#58a3b7" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></marker>
+          <marker id={`${uniqueId}-arrow`} markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto"><path d="M1 1 L5.5 3.5 L1 6" fill="none" stroke="var(--st-teal)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></marker>
         </defs>
 
         <g className="fv-grid" aria-hidden="true">
@@ -256,15 +256,15 @@ export function FoundationView({
           })}
         </g>
 
-        <polygon points={pointsString(geometry.vertices.map((point) => ground(point)))} fill="#6b6257" opacity="0.13" filter={`url(#${uniqueId}-shadow)`} transform="translate(0 15)" aria-hidden="true" />
-        <polygon points={pointsString(geometry.vertices.map((point) => ground(point)))} fill="#ebe9e3" fillOpacity="0.92" stroke="#d9d6ce" strokeWidth="1" aria-hidden="true" />
+        <polygon points={pointsString(geometry.vertices.map((point) => ground(point)))} fill="var(--sc-shadow)" opacity="0.13" filter={`url(#${uniqueId}-shadow)`} transform="translate(0 15)" aria-hidden="true" />
+        <polygon points={pointsString(geometry.vertices.map((point) => ground(point)))} fill="var(--sc-ground)" fillOpacity="0.92" stroke="var(--sc-ground-line)" strokeWidth="1" aria-hidden="true" />
 
         {isPlan ? geometry.walls.map((wall) => {
           const { corners, normal, tangent } = wallCorners(wall);
           const selected = selectedWall === wall.id;
           return (
             <g key={wall.id} data-wall={wall.id} className="fv-wall" role="button" tabIndex={0} aria-label={wallDescription(wall)} aria-pressed={selected} onKeyDown={(event) => selectWithKeyboard(event, wall.id)}>
-              <polygon points={pointsString(corners.map((point) => ground(point)))} fill={selected ? "#f4cfb4" : "#c7c5bc"} stroke={selected ? "#dd763d" : "#a6a499"} strokeWidth={selected ? 2 : 1} />
+              <polygon points={pointsString(corners.map((point) => ground(point)))} fill={selected ? "var(--sc-plan-sel)" : "var(--sc-plan-wall)"} stroke={selected ? "var(--st-orange)" : "var(--sc-plan-wall-line)"} strokeWidth={selected ? 2 : 1} />
               {ventsFor(wall.id).map((vent) => {
                 const radius = (variant?.diameterMm ?? 160) / 2000;
                 const ventCorners = [
@@ -273,7 +273,7 @@ export function FoundationView({
                   { x: vent.x + tangent.x * radius - normal.x * thickness * 0.65, z: vent.z + tangent.z * radius - normal.z * thickness * 0.65 },
                   { x: vent.x - tangent.x * radius - normal.x * thickness * 0.65, z: vent.z - tangent.z * radius - normal.z * thickness * 0.65 },
                 ];
-                return <polygon key={vent.id} points={pointsString(ventCorners.map((point) => ground(point)))} fill="#fffaf3" stroke={vent.internal ? "#779c9e" : "#e58b50"} strokeWidth="1.8"><title>{`Продух Ø ${variant?.diameterMm} мм · ${wall.label} · ${formatMetres(vent.offset)} от начала стены`}</title></polygon>;
+                return <polygon key={vent.id} points={pointsString(ventCorners.map((point) => ground(point)))} fill="var(--sc-hole)" stroke={vent.internal ? "var(--st-internal)" : "var(--sc-hole-line)"} strokeWidth="1.8"><title>{`Продух Ø ${variant?.diameterMm} мм · ${wall.label} · ${formatMetres(vent.offset)} от начала стены`}</title></polygon>;
               })}
             </g>
           );
@@ -281,8 +281,8 @@ export function FoundationView({
           const selected = selectedWall === face.wall.id;
           const light = face.normal ? face.normal.x * -0.4 + face.normal.z * -0.6 : 0;
           const fill = selected
-            ? face.side === "top" ? "#f6d2b8" : light > 0 ? "#e7b691" : "#dba783"
-            : face.side === "top" ? "#deded6" : face.side === "end" ? "#a9aba2" : light > 0 ? "#c6c8bf" : "#b5b8ae";
+            ? face.side === "top" ? "var(--sc-sel-top)" : light > 0 ? "var(--sc-sel-lit)" : "var(--sc-sel-shade)"
+            : face.side === "top" ? "var(--sc-face-top)" : face.side === "end" ? "var(--sc-face-end)" : light > 0 ? "var(--sc-face-lit)" : "var(--sc-face-shade)";
           const projectedCorners = face.corners.map(project);
           const { tangent } = wallCorners(face.wall);
           const holes = face.normal ? ventsFor(face.wall.id).map((vent) => {
@@ -298,11 +298,11 @@ export function FoundationView({
           const facePath = polygonPath(projectedCorners);
           return (
             <g key={face.key} data-wall={face.wall.id} className="fv-wall" role={face.side === "top" ? "button" : undefined} tabIndex={face.side === "top" ? 0 : undefined} aria-label={face.side === "top" ? wallDescription(face.wall) : undefined} aria-pressed={face.side === "top" ? selected : undefined} onKeyDown={(event) => selectWithKeyboard(event, face.wall.id)}>
-              {holes.map(({ vent, outline }) => <path key={`${vent.id}-bore`} d={polygonPath(outline)} fill="#565e58" stroke="#565e58" strokeWidth="0.6" />)}
-              <path d={`${facePath} ${holes.map(({ outline }) => polygonPath(outline)).join(" ")}`} fill={fill} fillRule="evenodd" stroke={selected ? "#cc895b" : "#9fa59a"} strokeWidth="0.8" strokeLinejoin="round" />
+              {holes.map(({ vent, outline }) => <path key={`${vent.id}-bore`} d={polygonPath(outline)} fill="var(--sc-bore)" stroke="var(--sc-bore)" strokeWidth="0.6" />)}
+              <path d={`${facePath} ${holes.map(({ outline }) => polygonPath(outline)).join(" ")}`} fill={fill} fillRule="evenodd" stroke={selected ? "var(--sc-sel-line)" : "var(--sc-face-line)"} strokeWidth="0.8" strokeLinejoin="round" />
               <path d={`${facePath} ${holes.map(({ outline }) => polygonPath(outline)).join(" ")}`} fill={`url(#${uniqueId}-concrete)`} fillRule="evenodd" pointerEvents="none" />
-              {face.side === "top" && <path d={facePath} fill="none" stroke={selected ? "#e79d65" : "#e9e9e1"} strokeWidth="1.1" pointerEvents="none" />}
-              {holes.map(({ vent, outline }) => <path key={vent.id} d={polygonPath(outline)} fill="none" stroke={vent.internal ? "#779c9e" : "#f1a571"} strokeWidth="2.1" strokeLinejoin="round"><title>{`Продух Ø ${variant?.diameterMm} мм · ${face.wall.label} · ось ${formatMetres(input.ventHeight)} от низа цоколя · ${formatMetres(vent.offset)} от начала стены`}</title></path>)}
+              {face.side === "top" && <path d={facePath} fill="none" stroke={selected ? "var(--sc-sel-edge)" : "var(--sc-face-edge)"} strokeWidth="1.1" pointerEvents="none" />}
+              {holes.map(({ vent, outline }) => <path key={vent.id} d={polygonPath(outline)} fill="none" stroke={vent.internal ? "var(--st-internal)" : "var(--sc-hole-line)"} strokeWidth="2.1" strokeLinejoin="round"><title>{`Продух Ø ${variant?.diameterMm} мм · ${face.wall.label} · ось ${formatMetres(input.ventHeight)} от низа цоколя · ${formatMetres(vent.offset)} от начала стены`}</title></path>)}
             </g>
           );
         })}
@@ -326,10 +326,10 @@ export function FoundationView({
         {dimension({ x: minX - 1.2, z: minZ }, { x: minX - 1.2, z: maxZ }, formatMetres(maxZ - minZ), "width")}
 
         <g className="fv-compass" transform="translate(882 83)" aria-hidden="true">
-          <circle r="26" fill="#faf9f6" stroke="#e3e2db" />
-          <path d="M 0 -15 L -5 0 L 0 -3 L 5 0 Z" fill="#868e83" transform={`rotate(${isPlan ? 0 : yaw * 180 / Math.PI})`} />
-          <path d="M 0 15 L -5 0 L 0 3 L 5 0 Z" fill="#d5d8cf" transform={`rotate(${isPlan ? 0 : yaw * 180 / Math.PI})`} />
-          <text y="44" textAnchor="middle" fill="#8f948a" fontSize="11">Z</text>
+          <circle r="26" fill="var(--st-surface)" stroke="var(--st-line)" />
+          <path d="M 0 -15 L -5 0 L 0 -3 L 5 0 Z" fill="var(--st-muted)" transform={`rotate(${isPlan ? 0 : yaw * 180 / Math.PI})`} />
+          <path d="M 0 15 L -5 0 L 0 3 L 5 0 Z" fill="var(--st-line-strong)" transform={`rotate(${isPlan ? 0 : yaw * 180 / Math.PI})`} />
+          <text y="44" textAnchor="middle" fill="var(--st-faint)" fontSize="11">Z</text>
         </g>
       </svg>
 
@@ -347,33 +347,33 @@ export function FoundationView({
       <div className="fv-model-legend"><span /><span>{variant ? `Продухи Ø ${variant.diameterMm} мм` : "Модель фундамента"}</span>{showAirflow && <><span className="fv-air-dot" /><span>Поток воздуха · схема</span></>}</div>
 
       <style>{`
-        .foundation-viewport { position: relative; width: 100%; height: 100%; min-height: 480px; overflow: hidden; background: #f6f6f1; isolation: isolate; }
+        .foundation-viewport { position: relative; width: 100%; height: 100%; min-height: 480px; overflow: hidden; background: var(--sc-bg); isolation: isolate; }
         .fv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; user-select: none; }
         .fv-dragging .fv-canvas { cursor: grabbing; }
-        .fv-canvas:focus-visible { outline: 2px solid #dc8a58; outline-offset: -5px; border-radius: 8px; }
-        .fv-grid line { stroke: #dbdfd3; stroke-width: 0.7; opacity: 0.6; }
+        .fv-canvas:focus-visible { outline: 2px solid var(--st-orange); outline-offset: -5px; border-radius: 8px; }
+        .fv-grid line { stroke: var(--sc-grid); stroke-width: 0.7; opacity: 0.6; }
         .fv-wall { cursor: pointer; outline: none; }
-        .fv-wall:focus-visible > polygon:first-child, .fv-wall:focus-visible > path { stroke: #bc622e; stroke-width: 2.5; }
-        .fv-dimension line { stroke: #a3a89c; stroke-width: 0.8; }
-        .fv-dimension rect { fill: #f6f6f1; }
-        .fv-dimension text { fill: #777f70; font: 500 13px var(--font-geist-sans, Arial), sans-serif; font-variant-numeric: tabular-nums; }
+        .fv-wall:focus-visible > polygon:first-child, .fv-wall:focus-visible > path { stroke: var(--st-orange); stroke-width: 2.5; }
+        .fv-dimension line { stroke: var(--st-faint); stroke-width: 0.8; }
+        .fv-dimension rect { fill: var(--sc-bg); }
+        .fv-dimension text { fill: var(--st-muted); font: 500 13px var(--font-geist-sans, Arial), sans-serif; font-variant-numeric: tabular-nums; }
         .fv-airflow { pointer-events: none; }
-        .fv-airflow > path { fill: none; stroke: #58a3b7; stroke-width: 1.8; stroke-dasharray: 4 3; opacity: 0.8; }
-        .fv-top-note { position: absolute; left: 25px; top: 25px; display: flex; align-items: center; gap: 8px; color: #8a9281; font-size: 9px; letter-spacing: 1.5px; font-weight: 600; z-index: 1; pointer-events: none; }
-        .fv-status-dot { width: 5px; height: 5px; border-radius: 100%; background: #7e9872; }
+        .fv-airflow > path { fill: none; stroke: var(--st-teal); stroke-width: 1.8; stroke-dasharray: 4 3; opacity: 0.8; }
+        .fv-top-note { position: absolute; left: 25px; top: 25px; display: flex; align-items: center; gap: 8px; color: var(--st-faint); font-size: 9px; letter-spacing: 1.5px; font-weight: 600; z-index: 1; pointer-events: none; }
+        .fv-status-dot { width: 5px; height: 5px; border-radius: 100%; background: var(--st-sage); }
         .fv-bottom-bar { position: absolute; bottom: 54px; left: 23px; right: 23px; display: flex; align-items: center; gap: 17px; justify-content: space-between; pointer-events: none; }
-        .fv-camera-controls { display: flex; align-items: center; gap: 2px; background: #ffffffee; padding: 4px; border: 1px solid #e3e5da; border-radius: 11px; box-shadow: 0 2px 5px #29331504; pointer-events: auto; }
-        .fv-camera-controls button { display: flex; align-items: center; justify-content: center; width: 31px; height: 31px; border: 0; border-radius: 6px; color: #646e5e; background: transparent; cursor: pointer; transition: background 150ms, color 150ms; }
-        .fv-camera-controls button:active { background: #e9ece3; }
-        .fv-camera-controls button:focus-visible { outline: 2px solid #dc8a58; outline-offset: 1px; }
+        .fv-camera-controls { display: flex; align-items: center; gap: 2px; background: var(--sc-label-bg); padding: 4px; border: 1px solid var(--st-line); border-radius: 11px; box-shadow: 0 2px 5px var(--st-shadow); pointer-events: auto; }
+        .fv-camera-controls button { display: flex; align-items: center; justify-content: center; width: 31px; height: 31px; border: 0; border-radius: 6px; color: var(--st-ink-2); background: transparent; cursor: pointer; transition: background 150ms, color 150ms; }
+        .fv-camera-controls button:active { background: var(--st-surface-3); }
+        .fv-camera-controls button:focus-visible { outline: 2px solid var(--st-orange); outline-offset: 1px; }
         .fv-camera-controls button:disabled { opacity: 0.35; cursor: default; }
-        .fv-camera-controls span { color: #747d6b; min-width: 42px; text-align: center; font-size: 10px; font-variant-numeric: tabular-nums; }
-        .fv-camera-controls i { height: 17px; width: 1px; background: #e9eae3; margin: 0 4px; }
-        .fv-help { color: #989e90; font-size: 10px; margin: 0; }
-        .fv-model-legend { position: absolute; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; bottom: 20px; left: 16px; right: 16px; color: #8f9786; font-size: 10px; pointer-events: none; }
-        .fv-model-legend > span:first-child { width: 7px; height: 7px; border: 1.5px solid #df925b; border-radius: 50%; }
-        .fv-model-legend .fv-air-dot { width: 12px; height: 0; border-top: 1.5px dashed #58a3b7; margin-left: 8px; }
-        @media (hover: hover) { .fv-camera-controls button:hover:not(:disabled) { background: #f0f2e9; color: #38482c; } }
+        .fv-camera-controls span { color: var(--st-muted); min-width: 42px; text-align: center; font-size: 10px; font-variant-numeric: tabular-nums; }
+        .fv-camera-controls i { height: 17px; width: 1px; background: var(--st-line); margin: 0 4px; }
+        .fv-help { color: var(--st-faint); font-size: 10px; margin: 0; }
+        .fv-model-legend { position: absolute; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; bottom: 20px; left: 16px; right: 16px; color: var(--st-faint); font-size: 10px; pointer-events: none; }
+        .fv-model-legend > span:first-child { width: 7px; height: 7px; border: 1.5px solid var(--sc-hole-line); border-radius: 50%; }
+        .fv-model-legend .fv-air-dot { width: 12px; height: 0; border-top: 1.5px dashed var(--st-teal); margin-left: 8px; }
+        @media (hover: hover) { .fv-camera-controls button:hover:not(:disabled) { background: var(--st-surface-3); color: var(--st-ink); } }
         @media (max-width: 600px) { .foundation-viewport { min-height: 385px; } .fv-top-note { left: 17px; top: 18px; font-size: 8px; } .fv-bottom-bar { left: 15px; right: 15px; bottom: 52px; } .fv-help { max-width: 110px; text-align: right; font-size: 9px; } }
         @media (prefers-reduced-motion: reduce) { .fv-camera-controls button { transition: none; } }
       `}</style>
