@@ -27,8 +27,8 @@ const MAX_SCALE = 480
 const FIT_PADDING = 64
 const MAX_VENTS = 100
 
-/** Canvas pixels cannot read CSS variables, so the studio/scene tokens from globals.css
- *  are mirrored here as hex, one set per theme. */
+/** Canvas не может читать CSS-переменные, поэтому токены студии и сцены из globals.css
+ *  продублированы здесь в шестнадцатеричном формате — отдельный набор для каждой темы. */
 const PALETTES = {
   light: {
     muted: "#757971", line: "#e4e6df", orange: "#df582c", onOrange: "#ffffff", wall: "#4c5245", floor: "#fdfaf5",
@@ -94,8 +94,8 @@ export function FoundationPlanCanvas({
   const stageRef = useRef<Konva.Stage>(null)
   const theme = useTheme()
   const colors = PALETTES[theme]
-  // Konva redraws on the next frame; draw now so a theme switch made right before
-  // printing (see ThemeSync) is already on the canvas when the page is captured.
+  // Konva перерисовывает canvas в следующем кадре; рисуем сразу, чтобы смена темы перед
+  // печатью (см. ThemeSync) уже отобразилась на canvas к моменту захвата страницы.
   useLayoutEffect(() => { stageRef.current?.draw() }, [theme])
   const drag = useRef<DragState | null>(null)
   const bandStart = useRef<{ pointerId: number; x: number; z: number } | null>(null)
