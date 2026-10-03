@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next"
+import type { Metadata } from "next"
 import { VentExperience } from "@/components/vent-experience"
 import { VentCalculatorGuide } from "@/components/vent-calculator-guide"
 import { ventPage } from "@/lib/vent-page"
@@ -12,8 +12,6 @@ export const metadata: Metadata = {
   openGraph: { title: ventPage.title, description: ventPage.description, url: ventPage.url, siteName: "SUNBUR", locale: "ru_RU", type: "website", images: [{ url: "/images/produkh-hole.png", alt: "Продух в цокольном фундаменте" }] },
   twitter: { card: "summary_large_image", title: ventPage.title, description: ventPage.description, images: ["/images/produkh-hole.png"] },
 }
-
-export const viewport: Viewport = { colorScheme: "light", themeColor: "#f6f6f3" }
 
 export default function VentCalculatorPage() {
   const structuredData = {

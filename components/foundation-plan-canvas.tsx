@@ -14,6 +14,7 @@ import {
   nextVentId, outwardNormal, projectOntoWall, snapVentOffset, ventAt, wallDirection, wallLength,
   type SnapHint,
 } from "@/lib/vent-editor"
+import { useTheme } from "@/lib/use-theme"
 
 /** Screen-space constants. Everything else is measured in metres and converted through
  *  the stage transform, so the feel of the tool stays the same at any zoom level. */
@@ -26,15 +27,20 @@ const MAX_SCALE = 480
 const FIT_PADDING = 64
 const MAX_VENTS = 100
 
-const MUTED = "#757971"
-const LINE = "#e4e6df"
-const ORANGE = "#df582c"
-const WALL = "#4c5245"
-const FLOOR = "#fdfaf5"
-const HOLE_FILL = "#fffaf3"
-const HOLE_STROKE = "#e58b50"
-const INTERNAL_STROKE = "#779c9e"
-const DANGER = "#c62f2f"
+/** Canvas не может читать CSS-переменные, поэтому токены студии и сцены из globals.css
+ *  продублированы здесь в шестнадцатеричном формате — отдельный набор для каждой темы. */
+const PALETTES = {
+  light: {
+    muted: "#757971", line: "#e4e6df", orange: "#df582c", onOrange: "#ffffff", wall: "#4c5245", floor: "#fdfaf5",
+    holeFill: "#fffaf3", holeStroke: "#e58b50", internalStroke: "#779c9e", danger: "#c62f2f", dangerFill: "#fdf1f1",
+    gridMajor: "#dfe2d8", gridMinor: "#eef0e9", labelBg: "#ffffff",
+  },
+  dark: {
+    muted: "#a3a6ae", line: "#3a3c43", orange: "#f06a3c", onOrange: "#16171b", wall: "#c5c8cf", floor: "#222428",
+    holeFill: "#1c1e22", holeStroke: "#f08c50", internalStroke: "#7fb0b2", danger: "#f06060", dangerFill: "#3a2426",
+    gridMajor: "#34363c", gridMinor: "#26282c", labelBg: "#1f2125",
+  },
+}
 
 const metres = (value: number, digits = 2) => value.toFixed(digits).replace(".", ",")
 
@@ -86,6 +92,11 @@ export function FoundationPlanCanvas({
 }: FoundationPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
+  const theme = useTheme()
+  const colors = PALETTES[theme]
+  // Konva перерисовывает canvas в следующем кадре; рисуем сразу, чтобы смена темы перед
+  // печатью (см. ThemeSync) уже отобразилась на canvas к моменту захвата страницы.
+  useLayoutEffect(() => { stageRef.current?.draw() }, [theme])
   const drag = useRef<DragState | null>(null)
   const bandStart = useRef<{ pointerId: number; x: number; z: number } | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -494,7 +505,7 @@ export function FoundationPlanCanvas({
           {grid?.map((entry, index) => <Line
             key={index}
             points={entry.points}
-            stroke={entry.major ? "#dfe2d8" : "#eef0e9"}
+            stroke={entry.major ? colors.gridMajor : colors.gridMinor}
             strokeWidth={1}
             strokeScaleEnabled={false}
           />)}
@@ -504,7 +515,7 @@ export function FoundationPlanCanvas({
           <Line
             points={geometry.vertices.flatMap((vertex) => [vertex.x, vertex.z])}
             closed
-            fill={FLOOR}
+            fill={colors.floor}
             listening={false}
           />
           {geometry.walls.map((wall) => {
@@ -528,7 +539,7 @@ export function FoundationPlanCanvas({
               />
               <Line
                 points={[wall.start.x, wall.start.z, wall.end.x, wall.end.z]}
-                stroke={isHovered ? ORANGE : WALL}
+                stroke={isHovered ? colors.orange : colors.wall}
                 strokeWidth={isHovered ? 7 : 5}
                 strokeScaleEnabled={false}
                 lineCap="square"
@@ -541,11 +552,11 @@ export function FoundationPlanCanvas({
 
         <Layer listening={false}>
           {dimensions.map((chain) => <Group key={chain.id}>
-            <Line points={chain.line} stroke={MUTED} strokeWidth={1} strokeScaleEnabled={false} />
-            {chain.ticks.map((tick) => <Line key={tick.key} points={tick.points} stroke={LINE} strokeWidth={1} strokeScaleEnabled={false} />)}
+            <Line points={chain.line} stroke={colors.muted} strokeWidth={1} strokeScaleEnabled={false} />
+            {chain.ticks.map((tick) => <Line key={tick.key} points={tick.points} stroke={colors.line} strokeWidth={1} strokeScaleEnabled={false} />)}
             {chain.labels.map((label) => <Group key={label.key} x={label.x} y={label.z} scaleX={counterScale} scaleY={counterScale}>
-              <Rect x={-19} y={-8} width={38} height={16} fill="#ffffff" cornerRadius={3} opacity={0.88} />
-              <Text x={-19} y={-5} width={38} align="center" text={label.text} fontSize={10} fontStyle="600" fill={MUTED} />
+              <Rect x={-19} y={-8} width={38} height={16} fill={colors.labelBg} cornerRadius={3} opacity={0.88} />
+              <Text x={-19} y={-5} width={38} align="center" text={label.text} fontSize={10} fontStyle="600" fill={colors.muted} />
             </Group>)}
           </Group>)}
           {geometry.walls.map((wall) => {
@@ -553,7 +564,7 @@ export function FoundationPlanCanvas({
             const normal = outwardNormal(geometry, wall)
             const away = toWorldLength(showDimensions && vents.some((vent) => vent.wallId === wall.id) ? 54 : 22)
             return <Group key={wall.id} x={middle.x + normal.x * away} y={middle.z + normal.z * away} scaleX={counterScale} scaleY={counterScale}>
-              <Text x={-52} y={-6} width={104} align="center" text={wall.label} fontSize={10} fill={MUTED} />
+              <Text x={-52} y={-6} width={104} align="center" text={wall.label} fontSize={10} fill={colors.muted} />
             </Group>
           })}
         </Layer>
@@ -564,24 +575,24 @@ export function FoundationPlanCanvas({
             const isSelected = selection.has(vent.id)
             const wall = geometry.walls.find((candidate) => candidate.id === vent.wallId)
             if (!wall) return null
-            const stroke = problems ? DANGER : vent.internal ? INTERNAL_STROKE : HOLE_STROKE
+            const stroke = problems ? colors.danger : vent.internal ? colors.internalStroke : colors.holeStroke
             return <Group
               key={vent.id}
               onPointerDown={(event: Konva.KonvaEventObject<PointerEvent>) => { if (!panning) beginDrag(event, vent, wall) }}
             >
               <Circle x={vent.x} y={vent.z} radius={Math.max(ventRadius, toWorldLength(11))} fill="transparent" />
-              {isSelected && <Circle x={vent.x} y={vent.z} radius={ventRadius} stroke={ORANGE} strokeWidth={9} strokeScaleEnabled={false} opacity={0.22} />}
-              <Circle x={vent.x} y={vent.z} radius={ventRadius} fill={problems ? "#fdf1f1" : HOLE_FILL} stroke={stroke} strokeWidth={isSelected ? 3 : 1.8} strokeScaleEnabled={false} />
+              {isSelected && <Circle x={vent.x} y={vent.z} radius={ventRadius} stroke={colors.orange} strokeWidth={9} strokeScaleEnabled={false} opacity={0.22} />}
+              <Circle x={vent.x} y={vent.z} radius={ventRadius} fill={problems ? colors.dangerFill : colors.holeFill} stroke={stroke} strokeWidth={isSelected ? 3 : 1.8} strokeScaleEnabled={false} />
             </Group>
           })}
         </Layer>
 
         <Layer listening={false}>
           {snapGuide && <>
-            <Line points={snapGuide.points} stroke={ORANGE} strokeWidth={1} strokeScaleEnabled={false} dash={[5, 4]} />
+            <Line points={snapGuide.points} stroke={colors.orange} strokeWidth={1} strokeScaleEnabled={false} dash={[5, 4]} />
             <Group x={snapGuide.x} y={snapGuide.z} scaleX={counterScale} scaleY={counterScale}>
-              <Rect x={-62} y={-9} width={124} height={18} fill={ORANGE} cornerRadius={4} />
-              <Text x={-62} y={-5} width={124} align="center" text={snapGuide.label} fontSize={10} fontStyle="600" fill="#ffffff" />
+              <Rect x={-62} y={-9} width={124} height={18} fill={colors.orange} cornerRadius={4} />
+              <Text x={-62} y={-5} width={124} align="center" text={snapGuide.label} fontSize={10} fontStyle="600" fill={colors.onOrange} />
             </Group>
           </>}
           {band && <Rect
@@ -589,9 +600,9 @@ export function FoundationPlanCanvas({
             y={Math.min(band.fromZ, band.toZ)}
             width={Math.abs(band.toX - band.fromX)}
             height={Math.abs(band.toZ - band.fromZ)}
-            fill={ORANGE}
+            fill={colors.orange}
             opacity={0.08}
-            stroke={ORANGE}
+            stroke={colors.orange}
             strokeWidth={1}
             strokeScaleEnabled={false}
             dash={[4, 3]}

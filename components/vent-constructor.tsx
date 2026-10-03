@@ -7,6 +7,7 @@ import type { FormEvent, ReactNode } from "react"
 import { ArrowLeft, ArrowRight, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Download, FileUp, Hand, Layers3, Loader2, Plus, Printer, RotateCcw, Ruler, Send, SlidersHorizontal, Sparkles, Wind, X } from "lucide-react"
 import { FoundationView } from "@/components/foundation-view"
 import { BrandMark } from "@/components/brand-mark"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { CALCULATION_SOURCES, DEFAULT_FOUNDATION, calculateVentilation, foundationInputSchema, migrateFoundationProjectV1, summarizeManualVents, walkContour } from "@/lib/vent-calculator"
 import type { ContourStep, FoundationInput, VentPlacement } from "@/lib/vent-calculator"
 import { materialOptions } from "@/lib/site-data"
@@ -211,7 +212,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
   return <div className="vent-studio">
     <header className="vc-header vc-no-print">
       <Link href="/" className="vc-brand" aria-label="SUNBUR — на главную"><BrandMark className="vc-brand-icon" />SUNBUR<span className="vc-brand-divider" /> <span className="vc-brand-sub">инструменты для вашего дома</span></Link>
-      <Link className="vc-back" href="/uslugi/produhi-v-fundamente"><ArrowLeft size={15} /> Об услуге</Link>
+      <div className="vc-header-actions"><Link className="vc-back" href="/uslugi/produhi-v-fundamente"><ArrowLeft size={15} /> Об услуге</Link><ThemeToggle /></div>
     </header>
 
     <main className="vc-main">

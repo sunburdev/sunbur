@@ -2,7 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Theme lives on <html data-theme="dark|light">; dark is the default (see lib/theme.ts). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
   --font-sans: var(--font-geist);
@@ -25,14 +26,31 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-scrim: var(--scrim);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.5);
 }
 
-:root {
+/* ─── Design tokens ───────────────────────────────────────────────────────────
+   One palette, two moods. Dark: graphite with a hot drill-bit orange. Light: warm
+   "drafting paper" with graphite ink and the same orange, a shade deeper so small
+   orange text still clears WCAG AA on white.
+
+   Groups:
+   - site tokens (shadcn names)       → the marketing pages and ui/ components;
+   - --st-*  studio surfaces and text → /instrumenty and the vent calculator;
+   - --sc-*  scene                    → 3D foundation model and plan editors;
+   - --dg-*  diagram                  → the tool SVG schematics.
+   Tints are mixed from their base colour over the surface, so they stay in tune when a
+   base colour changes. */
+
+:root,
+[data-theme="dark"] {
   color-scheme: dark;
+  --radius: 0.5rem;
+
   --background: oklch(0.165 0.008 265);
   --foreground: oklch(0.96 0.004 265);
   --card: oklch(0.205 0.009 265);
@@ -51,7 +69,205 @@
   --border: oklch(0.3 0.01 265);
   --input: oklch(0.3 0.01 265);
   --ring: oklch(0.66 0.2 32);
-  --radius: 0.5rem;
+  /* Darkens photos under overlaid text/labels; deliberately the same in both themes. */
+  --scrim: oklch(0.165 0.008 265);
+  --grid-line: oklch(0.3 0.01 265 / 0.5);
+
+  /* Studio */
+  --st-bg: var(--background);
+  --st-surface: var(--card);
+  --st-surface-2: oklch(0.185 0.008 265);
+  --st-surface-3: oklch(0.25 0.009 265);
+  --st-ink: var(--foreground);
+  --st-ink-2: oklch(0.85 0.008 265);
+  --st-muted: oklch(0.7 0.012 265);
+  --st-faint: oklch(0.6 0.012 265);
+  --st-line: oklch(0.3 0.01 265);
+  --st-line-soft: oklch(0.255 0.009 265);
+  --st-line-strong: oklch(0.4 0.012 265);
+  --st-orange: oklch(0.68 0.19 38);
+  --st-orange-ink: oklch(0.76 0.15 45);
+  --st-on-orange: oklch(0.16 0.01 265);
+  --st-sage: oklch(0.72 0.11 135);
+  --st-sage-ink: oklch(0.8 0.08 135);
+  --st-warn: oklch(0.78 0.13 80);
+  --st-warn-ink: oklch(0.84 0.1 82);
+  --st-danger: oklch(0.68 0.19 25);
+  --st-danger-ink: oklch(0.77 0.13 30);
+  --st-teal: oklch(0.74 0.09 215);
+  --st-teal-ink: oklch(0.8 0.08 210);
+  --st-internal: oklch(0.72 0.05 200);
+  --st-inverse: oklch(0.93 0.005 265);
+  --st-inverse-ink: oklch(0.18 0.01 265);
+  --st-inverse-hover: oklch(0.83 0.006 265);
+  --st-shadow: oklch(0 0 0 / 0.35);
+  --st-tint: 12%;
+  --st-tint-line: 40%;
+
+  /* Scene */
+  --sc-bg: oklch(0.185 0.008 265);
+  --sc-grid: oklch(0.34 0.01 265);
+  --sc-ground: oklch(0.235 0.009 265);
+  --sc-ground-line: oklch(0.32 0.01 265);
+  --sc-shadow: oklch(0 0 0);
+  --sc-floor: oklch(0.225 0.01 265);
+  --sc-wall: oklch(0.82 0.01 265);
+  --sc-face-top: oklch(0.56 0.008 265);
+  --sc-face-lit: oklch(0.46 0.008 265);
+  --sc-face-shade: oklch(0.39 0.008 265);
+  --sc-face-end: oklch(0.33 0.008 265);
+  --sc-face-line: oklch(0.27 0.008 265);
+  --sc-face-edge: oklch(0.66 0.008 265);
+  --sc-sel-top: oklch(0.66 0.12 48);
+  --sc-sel-lit: oklch(0.56 0.12 44);
+  --sc-sel-shade: oklch(0.49 0.11 42);
+  --sc-sel-line: oklch(0.78 0.13 48);
+  --sc-sel-edge: oklch(0.82 0.12 55);
+  --sc-plan-wall: oklch(0.44 0.008 265);
+  --sc-plan-wall-line: oklch(0.56 0.008 265);
+  --sc-plan-sel: oklch(0.55 0.12 45);
+  --sc-bore: oklch(0.13 0.008 265);
+  --sc-hole: oklch(0.2 0.01 265);
+  --sc-hole-line: oklch(0.74 0.15 52);
+  --sc-grain: oklch(0.92 0 0);
+  --sc-label-bg: oklch(0.205 0.009 265 / 0.9);
+
+  /* Diagram */
+  --dg-bg: oklch(0.19 0.008 265);
+  --dg-ink: oklch(0.7 0.015 140);
+  --dg-ink-strong: oklch(0.95 0.008 140);
+  --dg-ink-value: oklch(0.84 0.012 140);
+  --dg-ink-soft: oklch(0.66 0.015 140);
+  --dg-mass: oklch(0.29 0.01 265);
+  --dg-mass-line: oklch(0.46 0.012 265);
+  --dg-paper: oklch(0.225 0.009 265);
+  --dg-stroke: oklch(0.64 0.025 140);
+  --dg-sage: oklch(0.66 0.06 145);
+  --dg-sage-soft: oklch(0.29 0.025 145);
+  --dg-sage-mid: oklch(0.46 0.035 145);
+  --dg-orange: oklch(0.68 0.17 40);
+  --dg-highlight: oklch(0.86 0.08 62);
+  --dg-insulation: oklch(0.6 0.08 72);
+  --dg-sun: oklch(0.64 0.07 60);
+  --dg-blue: oklch(0.7 0.05 240);
+  --dg-point: oklch(0.92 0.01 150);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --background: oklch(0.975 0.004 95);
+  --foreground: oklch(0.205 0.012 265);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.012 265);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.012 265);
+  --primary: oklch(0.555 0.19 36);
+  --primary-foreground: oklch(0.99 0.003 95);
+  --secondary: oklch(0.945 0.005 95);
+  --secondary-foreground: oklch(0.205 0.012 265);
+  --muted: oklch(0.948 0.005 95);
+  --muted-foreground: oklch(0.48 0.012 265);
+  --accent: oklch(0.555 0.19 36);
+  --accent-foreground: oklch(0.99 0.003 95);
+  --destructive: oklch(0.56 0.21 27);
+  --border: oklch(0.9 0.006 95);
+  --input: oklch(0.87 0.006 95);
+  --ring: oklch(0.555 0.19 36);
+  --scrim: oklch(0.165 0.008 265);
+  --grid-line: oklch(0.205 0.012 265 / 0.07);
+
+  /* Studio — the original paper-and-sage look of the tools */
+  --st-bg: #f6f6f3;
+  --st-surface: #ffffff;
+  --st-surface-2: #fafbf7;
+  --st-surface-3: #f0f2eb;
+  --st-ink: #262925;
+  --st-ink-2: #4c5245;
+  --st-muted: #72776d;
+  --st-faint: #7f8579;
+  --st-line: #e3e6de;
+  --st-line-soft: #edf0e8;
+  --st-line-strong: #cfd3c8;
+  --st-orange: #df582c;
+  --st-orange-ink: #bf4f2b;
+  --st-on-orange: #ffffff;
+  --st-sage: #6f9c4c;
+  --st-sage-ink: #5f7550;
+  --st-warn: #d9a441;
+  --st-warn-ink: #8f6a33;
+  --st-danger: #c62f2f;
+  --st-danger-ink: #a8432d;
+  --st-teal: #58a3b7;
+  --st-teal-ink: #438594;
+  --st-internal: #779c9e;
+  --st-inverse: #2e332c;
+  --st-inverse-ink: #ffffff;
+  --st-inverse-hover: #48503f;
+  --st-shadow: rgb(33 45 23 / 0.08);
+  --st-tint: 9%;
+  --st-tint-line: 38%;
+
+  /* Scene */
+  --sc-bg: #f6f6f1;
+  --sc-grid: #dbdfd3;
+  --sc-ground: #ebe9e3;
+  --sc-ground-line: #d9d6ce;
+  --sc-shadow: #6b6257;
+  --sc-floor: #fdfaf5;
+  --sc-wall: #4c5245;
+  --sc-face-top: #deded6;
+  --sc-face-lit: #c6c8bf;
+  --sc-face-shade: #b5b8ae;
+  --sc-face-end: #a9aba2;
+  --sc-face-line: #9fa59a;
+  --sc-face-edge: #e9e9e1;
+  --sc-sel-top: #f6d2b8;
+  --sc-sel-lit: #e7b691;
+  --sc-sel-shade: #dba783;
+  --sc-sel-line: #cc895b;
+  --sc-sel-edge: #e79d65;
+  --sc-plan-wall: #c7c5bc;
+  --sc-plan-wall-line: #a6a499;
+  --sc-plan-sel: #f4cfb4;
+  --sc-bore: #565e58;
+  --sc-hole: #fffaf3;
+  --sc-hole-line: #e58b50;
+  --sc-grain: #817e77;
+  --sc-label-bg: rgb(255 255 255 / 0.9);
+
+  /* Diagram */
+  --dg-bg: #f3f4ed;
+  --dg-ink: #67725e;
+  --dg-ink-strong: #394833;
+  --dg-ink-value: #56614e;
+  --dg-ink-soft: #7d8874;
+  --dg-mass: #e2e4da;
+  --dg-mass-line: #a7b09d;
+  --dg-paper: #f7f7f1;
+  --dg-stroke: #838d7c;
+  --dg-sage: #7d907b;
+  --dg-sage-soft: #e5ebe0;
+  --dg-sage-mid: #b3bcab;
+  --dg-orange: #d66740;
+  --dg-highlight: #ffd6ae;
+  --dg-insulation: #e1bd8c;
+  --dg-sun: #d8b89b;
+  --dg-blue: #778e9e;
+  --dg-point: #273c32;
+}
+
+/* Tints derived from the bases above; declared once, resolved per theme. */
+:root {
+  --st-orange-soft: color-mix(in oklch, var(--st-orange) var(--st-tint), var(--st-surface));
+  --st-orange-line: color-mix(in oklch, var(--st-orange) var(--st-tint-line), var(--st-surface));
+  --st-sage-soft: color-mix(in oklch, var(--st-sage) var(--st-tint), var(--st-surface));
+  --st-sage-line: color-mix(in oklch, var(--st-sage) var(--st-tint-line), var(--st-surface));
+  --st-warn-soft: color-mix(in oklch, var(--st-warn) var(--st-tint), var(--st-surface));
+  --st-warn-line: color-mix(in oklch, var(--st-warn) var(--st-tint-line), var(--st-surface));
+  --st-danger-soft: color-mix(in oklch, var(--st-danger) var(--st-tint), var(--st-surface));
+  --st-danger-line: color-mix(in oklch, var(--st-danger) var(--st-tint-line), var(--st-surface));
+  --st-teal-soft: color-mix(in oklch, var(--st-teal) var(--st-tint), var(--st-surface));
 }
 
 @layer base {
@@ -67,6 +283,21 @@
   ::selection {
     @apply bg-primary text-primary-foreground;
   }
+}
+
+/* Theme switch: the new theme is revealed as a growing circle (see theme-toggle.tsx),
+   so the default cross-fade is switched off. Without View Transitions, transitions are
+   muted for a frame so every element changes colour at once. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
 }
 
 @layer utilities {
@@ -87,8 +318,8 @@
   /* Technical grid background */
   .hud-grid {
     background-image:
-      linear-gradient(to right, oklch(0.3 0.01 265 / 0.5) 1px, transparent 1px),
-      linear-gradient(to bottom, oklch(0.3 0.01 265 / 0.5) 1px, transparent 1px);
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
     background-size: 46px 46px;
     mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 40%, transparent 100%);
   }

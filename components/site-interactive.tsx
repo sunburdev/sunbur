@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Menu, Phone, Send } from "lucide-react"
 import { BrandMark } from "@/components/brand-mark"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -40,29 +41,30 @@ export function Header() {
             </Link>
           ))}
         </nav>
-        <div className="hidden items-center gap-4 md:flex">
-          <a href={`tel:${site.phone}`} className="font-mono text-sm font-bold">{site.phoneDisplay}</a>
-          <Button size="lg" render={<Link href="/#contacts" />}>Связаться</Button>
+        <div className="flex items-center gap-3 md:gap-4">
+          <a href={`tel:${site.phone}`} className="hidden font-mono text-sm font-bold md:inline">{site.phoneDisplay}</a>
+          <Button size="lg" className="hidden md:inline-flex" render={<Link href="/#contacts" />}>Связаться</Button>
+          <ThemeToggle />
+          <Sheet>
+            <SheetTrigger render={<Button variant="outline" size="icon-lg" className="xl:hidden" aria-label="Открыть меню" />}>
+              <Menu />
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle className="font-mono">SUNBUR — меню</SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-4" aria-label="Мобильная навигация">
+                {navigation.map((item) => (
+                  <Link key={item.href} href={item.href} className="border-b border-border py-3 text-base font-medium">{item.label}</Link>
+                ))}
+              </nav>
+              <div className="mt-auto flex flex-col gap-3 p-4">
+                <a href={`tel:${site.phone}`} className="font-mono text-lg font-bold">{site.phoneDisplay}</a>
+                <Button render={<Link href="/#contacts" />}>Связаться</Button>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
-        <Sheet>
-          <SheetTrigger render={<Button variant="outline" size="icon-lg" className="xl:hidden" aria-label="Открыть меню" />}>
-            <Menu />
-          </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle className="font-mono">SUNBUR — меню</SheetTitle>
-            </SheetHeader>
-            <nav className="flex flex-col gap-1 px-4" aria-label="Мобильная навигация">
-              {navigation.map((item) => (
-                <Link key={item.href} href={item.href} className="border-b border-border py-3 text-base font-medium">{item.label}</Link>
-              ))}
-            </nav>
-            <div className="mt-auto flex flex-col gap-3 p-4">
-              <a href={`tel:${site.phone}`} className="font-mono text-lg font-bold">{site.phoneDisplay}</a>
-              <Button render={<Link href="/#contacts" />}>Связаться</Button>
-            </div>
-          </SheetContent>
-        </Sheet>
       </div>
     </header>
   )
