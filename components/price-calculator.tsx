@@ -13,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { CalculatorUsage } from "@/components/calculator-usage"
 import { crownDiameters } from "@/lib/diameter-catalog"
+import { CALCULATORS } from "@/lib/metrika"
 import {
   applyQuantityDiscount,
   calculateHolePrice,
@@ -107,6 +109,7 @@ export function PriceCalculator() {
   const multiRow = rows.length > 1
 
   return (
+    <CalculatorUsage calculator={CALCULATORS.price}>
     <div className="grid overflow-hidden rounded-2xl border border-border bg-card lg:grid-cols-2">
       <div className="flex flex-col gap-5 p-6">
         <div>
@@ -304,5 +307,6 @@ export function PriceCalculator() {
         </div>
       </div>
     </div>
+    </CalculatorUsage>
   )
 }

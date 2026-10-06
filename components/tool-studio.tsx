@@ -12,6 +12,8 @@ import { ToolPrintParameters } from "./tool-print-parameters"
 import { NumberField } from "./tool-number-field"
 import { ToolExtraFields } from "./tool-extra-fields"
 import { ToolDiameterFields, ToolDiameterComparison } from "./tool-diameter-selection"
+import { CalculatorUsage } from "./calculator-usage"
+import { GOALS, trackCalculator } from "@/lib/metrika"
 function MaterialField({ value, onChange }: { value: string; onChange: (value: EstimateRow["material"]) => void }) {
   return <label className="tools-field"><span>Материал</span><select value={value} onChange={event => onChange(event.target.value as EstimateRow["material"])}>{materialOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
 }
@@ -64,6 +66,7 @@ export function ToolStudio({ id }: { id: ToolId }) {
   }, [id])
   useEffect(() => { controller.current?.abort(); setBusy(false); setError("") }, [input, image, includePhoto])
 
+  function print() { trackCalculator(GOALS.print, tool.slug); window.print() }
   async function ask(prompt: string) {
     if (!result || busy || !prompt.trim()) return
     controller.current?.abort()
@@ -73,7 +76,7 @@ export function ToolStudio({ id }: { id: ToolId }) {
       const response = await fetch("/api/tool-advice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input, question: prompt.trim(), ...(input.kind === "photo" && includePhoto && image ? { image } : {}) }), signal: abort.signal })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Не удалось получить ответ.")
-      if (!abort.signal.aborted) { setAnswer({ text: data.answer, input, image, includePhoto }); setQuestion(""); setConfigured(true) }
+      if (!abort.signal.aborted) { setAnswer({ text: data.answer, input, image, includePhoto }); setQuestion(""); setConfigured(true); trackCalculator(GOALS.aiQuestion, tool.slug) }
     } catch (err) { if (!abort.signal.aborted) setError(err instanceof Error ? err.message : "Ошибка подключения.") }
     finally { if (!abort.signal.aborted) setBusy(false) }
   }
@@ -84,6 +87,7 @@ export function ToolStudio({ id }: { id: ToolId }) {
     const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, input, ...(image ? { image } : {}) }, null, 2)], { type: "application/json" }))
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = `sunbur-${tool.slug}.json`; anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+    trackCalculator(GOALS.save, tool.slug)
     setNotice("Файл проекта подготовлен. Его можно открыть здесь и продолжить работу.")
   }
   async function loadProject(file?: File) {
@@ -121,8 +125,8 @@ export function ToolStudio({ id }: { id: ToolId }) {
     patch({ markers: [...input.markers, { x, y, diameter: 132, depth: 300, material: "concrete", note: "" }] })
   }
 
-  return <>
-    <div className="tools-title-row"><div><span className="tools-eyebrow">{tool.category} / SUNBUR</span><h1>{tool.title}</h1><p>{tool.description}</p></div><div className="tools-toolbar tools-no-print"><button onClick={() => projectFile.current?.click()}><Upload size={16} />Открыть</button><button onClick={save} disabled={!result}><Download size={16} />Сохранить</button><button onClick={() => window.print()} disabled={!result}><Printer size={16} />PDF</button></div></div>
+  return <CalculatorUsage calculator={tool.slug}>
+    <div className="tools-title-row"><div><span className="tools-eyebrow">{tool.category} / SUNBUR</span><h1>{tool.title}</h1><p>{tool.description}</p></div><div className="tools-toolbar tools-no-print"><button onClick={() => projectFile.current?.click()}><Upload size={16} />Открыть</button><button onClick={save} disabled={!result}><Download size={16} />Сохранить</button><button onClick={print} disabled={!result}><Printer size={16} />PDF</button></div></div>
     <input type="file" accept=".json,application/json" hidden ref={projectFile} onChange={e => { void loadProject(e.target.files?.[0]); e.target.value = "" }} />
     <div className="tools-tabs tools-no-print" aria-label="Другие инструменты">{toolsCatalog.map(item => <Link key={item.id} href={toolPath(item.id)} aria-current={item.id === id ? "page" : undefined}>{item.short}</Link>)}</div>
     {notice && <p className="tools-notice tools-no-print" role="status">{notice}</p>}
@@ -163,8 +167,8 @@ export function ToolStudio({ id }: { id: ToolId }) {
           <form onSubmit={e => { e.preventDefault(); void ask(question) }} className="tools-question"><label htmlFor="tools-question" className="tools-sr-only">Вопрос AI-помощнику</label><textarea id="tools-question" value={question} onChange={e => setQuestion(e.target.value)} maxLength={1200} placeholder="Или задайте свой вопрос по расчёту…" rows={2} /><button aria-label="Отправить вопрос" disabled={!question.trim() || !result || busy || configured === false}><Send size={19} /></button></form><p className="tools-hint">Параметры передаются помощнику только при отправке вопроса.</p></div>
           {busy && <p role="status" className="tools-ai-loading">Изучаю ваши параметры…</p>}{error && <p role="alert" className="tools-field-error">{error}</p>}{currentAnswer && <div className="tools-ai-answer" aria-live="polite"><span className="tools-eyebrow">ОТВЕТ AI · ПО ТЕКУЩИМ ПАРАМЕТРАМ</span><p>{currentAnswer}</p></div>}
         </section>
-        <div className="tools-result-actions tools-no-print"><button onClick={() => window.print()} disabled={!result}><Printer size={17} />Печать / сохранить PDF</button><Link href="/#contacts">Обсудить с мастером<ArrowRight size={17} /></Link></div>
+        <div className="tools-result-actions tools-no-print"><button onClick={print} disabled={!result}><Printer size={17} />Печать / сохранить PDF</button><Link href="/#contacts">Обсудить с мастером<ArrowRight size={17} /></Link></div>
       </div>
     </div>
-  </>
+  </CalculatorUsage>
 }

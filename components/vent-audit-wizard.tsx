@@ -14,6 +14,8 @@ import { auditContext, auditProjectSchema, calculateAudit, inspectSystem, migrat
 import { foundationInputSchema, migrateFoundationProjectV1, walkContour, type ContourStep } from "@/lib/vent-calculator"
 import { materialOptions } from "@/lib/site-data"
 import { ContourEditor } from "@/components/foundation-contour-editor"
+import { CalculatorUsage } from "@/components/calculator-usage"
+import { CALCULATORS, GOALS, trackCalculator } from "@/lib/metrika"
 
 const STORAGE = "sunbur:vent-audit:v3"
 const format = (n: number, digits = 2) => n.toLocaleString("ru-RU", { maximumFractionDigits: digits })
@@ -105,6 +107,7 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
     if (!validated.success) return
     const url = URL.createObjectURL(new Blob([JSON.stringify(validated.data, null, 2)], { type: "application/json" }))
     const a = document.createElement("a"); a.href = url; a.download = "sunbur-moi-produhi.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    trackCalculator(GOALS.save, CALCULATORS.ventAudit)
     setNotice("Проект сохранён в файл. Его можно открыть здесь снова.")
   }
   async function importFile(file?: File) {
@@ -122,12 +125,13 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
     } catch (e) { setNotice(e instanceof Error ? e.message : "Не удалось открыть файл.") }
     if (upload.current) upload.current.value = ""
   }
+  function print() { trackCalculator(GOALS.print, CALCULATORS.ventAudit); window.print() }
   const stepNames = ["Ваш фундамент", "Ваши продухи", "Что улучшить"]
-  return <div className="vent-studio va-screen">
+  return <CalculatorUsage calculator={CALCULATORS.ventAudit}><div className="vent-studio va-screen">
     <header className="va-header va-no-print"><Link href="/" className="va-brand"><BrandMark /> SUNBUR</Link><span>Понятные инструменты для дома</span><Link href="/uslugi/produhi-v-fundamente">Об услуге</Link><ThemeToggle /></header>
     <main className="va-main">
       <div className="va-intro"><div><p className="va-eyebrow">ПРОВЕРИМ ВАШ ДОМ ВМЕСТЕ</p><h1>Хватает ли продухов<br />в вашем фундаменте?</h1><p>Покажите, что уже есть. Подскажем, что оставить,<br className="va-desktop" /> где добавить и какие отверстия можно рассмотреть для расширения.</p></div><div className="va-project-tools va-no-print"><Button variant="outline" onClick={() => upload.current?.click()}><FileUp data-icon="inline-start" />Открыть</Button><Button variant="outline" onClick={download} disabled={!validated.success}><Download data-icon="inline-start" />Сохранить</Button><input ref={upload} hidden type="file" accept=".json,application/json" aria-label="Открыть проект" onChange={e => void importFile(e.target.files?.[0])} /></div></div>
-      <div className="va-mode-note va-no-print"><span><Check aria-hidden="true" /> Проверяю существующие продухи</span><Button variant="link" onClick={onLegacy}>У меня пока нет продухов →</Button></div>
+      <div className="va-mode-note va-no-print"><span><Check aria-hidden="true" /> Проверяю существующие продухи</span><Button variant="link" data-metrika-ignore onClick={onLegacy}>У меня пока нет продухов →</Button></div>
       <nav className="va-steps va-no-print" aria-label="Шаги проверки">{stepNames.map((name, i) => <button key={name} aria-current={step === i ? "step" : undefined} onClick={() => navigate(i)}><span>{i + 1}</span><strong>{name}</strong>{i < 2 && <ArrowRight aria-hidden="true" />}</button>)}</nav>
       <div className="va-notice va-no-print" role="status">{notice}{undo && <Button variant="link" onClick={() => { setProject(undo); setUndo(null); setNotice("Последнее действие отменено.") }}><RotateCcw data-icon="inline-start" />Отменить</Button>}</div>
       <div className="va-layout">
@@ -217,7 +221,7 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
             <NumberField label="Целевая доля площади: 1 /" value={project.foundation.areaRatio} min={100} max={1000} unit="" onChange={v => foundation("areaRatio", v)} hint="400 — сценарий для предварительного сравнения, не универсальная норма." />
           </div><label className="va-check"><input type="checkbox" checked={project.groundLevel !== null} onChange={e => change({ ...project, groundLevel: e.target.checked ? 0 : null })} /><span>Знаю уровень земли относительно низа цоколя</span></label>{project.groundLevel !== null && <NumberField label="Земля выше (+) или ниже (−) низа цоколя на" value={project.groundLevel} min={-2} max={2.5} onChange={v => change({ ...project, groundLevel: v })} hint="0 — земля на уровне низа цоколя. Положительное значение — земля выше низа цоколя. Отрицательное — земля ниже низа цоколя. Для неровного участка нужна проверка по каждой стене на объекте." />}<label className="va-check"><input type="checkbox" checked={project.allowNew} onChange={e => change({ ...project, allowNew: e.target.checked }, true)} /><span>Можно рассматривать новые отверстия</span></label><label className="va-check"><input type="checkbox" checked={project.foundation.underFloor} onChange={e => foundation("underFloor", e.target.checked)} /><span>Бурение из подпола — учесть доплату</span></label></FieldGroup></details>
 
-          <div className="va-bottom-nav va-no-print">{step > 0 && <Button variant="outline" onClick={() => navigate(step - 1)}><ArrowLeft data-icon="inline-start" />Назад</Button>}{step < 2 ? <Button disabled={!validated.success || !geometryValid.success || (step === 0 && project.kind !== "crawlspace")} onClick={() => navigate(step + 1)}>{step === 0 ? "Размеры верны, дальше" : "Проверить мои продухи"}<ArrowRight data-icon="inline-end" /></Button> : <Button onClick={() => window.print()} disabled={!result}><Printer data-icon="inline-start" />Сохранить результат в PDF / печать</Button>}</div>
+          <div className="va-bottom-nav va-no-print">{step > 0 && <Button variant="outline" onClick={() => navigate(step - 1)}><ArrowLeft data-icon="inline-start" />Назад</Button>}{step < 2 ? <Button disabled={!validated.success || !geometryValid.success || (step === 0 && project.kind !== "crawlspace")} onClick={() => navigate(step + 1)}>{step === 0 ? "Размеры верны, дальше" : "Проверить мои продухи"}<ArrowRight data-icon="inline-end" /></Button> : <Button onClick={print} disabled={!result}><Printer data-icon="inline-start" />Сохранить результат в PDF / печать</Button>}</div>
 
           {result && <section className="va-print-only"><h2>Проверка существующих продухов SUNBUR</h2><p>Форма {project.foundation.shape}; {project.foundation.length} × {project.foundation.width} м. Высота {project.foundation.height} м, толщина {project.foundation.thickness} мм. Материал: {materialOptions.find(m => m.value === project.foundation.material)?.label}.</p><h3>Существующие отверстия</h3><table><thead><tr><th>№ / стена</th><th>Размер</th><th>От начала / высота, м</th><th>Сечение / состояние</th></tr></thead><tbody>{project.openings.map(o => <tr key={o.id}><td>{o.id} · {result.geometry.walls.find(w => w.id === o.wallId)?.label ?? "Нет привязки"}</td><td>{openingSize(o)}</td><td>{format(o.offset)} / {format(o.height)}</td><td>{o.freePercent ?? "?"}% · {o.state === "open" ? "открыт" : o.state === "closed" ? "закрыт" : "неизвестно"}</td></tr>)}</tbody></table><p>Наружная свободная площадь: {area(result.before.externalFreeArea)}. Цель: {area(result.before.requiredArea)}. Площадь после: {proposal ? area(proposal.after.externalFreeArea) : "вариант не сформирован"}.</p>{result.before.issues.map((i, n) => <p key={n}>{i.text}</p>)}{proposal && <><h3>{proposal.title} · {proposal.solved ? "проверки модели пройдены" : "частичный вариант"}</h3>{proposal.actions.map(a => <p key={a.opening.id}>{a.kind === "add" ? "Добавить" : "Расширить"} {a.opening.id}: {a.before ? `${openingSize(a.before)} → ` : ""}{openingSize(a.opening)}. {result.geometry.walls.find(w => w.id === a.opening.wallId)?.label}, от начала {format(a.opening.offset)} м, центр от низа {format(a.opening.height)} м. {a.reason} {a.price === null ? "Цена по осмотру" : money(a.price)}.</p>)}<p>Известные работы: {money(proposal.knownCost)}{!proposal.costComplete && "; расширение оценивается отдельно"}.</p></>}{result.geometry.walls.map(w => <p key={w.id}>{w.label}: начало X={format(w.start.x)}, Z={format(w.start.z)}; конец X={format(w.end.x)}, Z={format(w.end.z)} м.</p>)}</section>}
           <div className="va-limits">{result ? result.assumptions.map((a, i) => <p key={i}>{a}</p>) : <p>Предварительная схема для обсуждения с мастером. Прочность фундамента, арматуру и фактическую вентиляцию проверяют на объекте.</p>}</div>
@@ -227,5 +231,5 @@ export function VentAuditWizard({ children, onLegacy }: { children?: ReactNode; 
       <div className="va-no-print">{children}</div>
       <footer className="va-footer"><Link href="/">SUNBUR · алмазное бурение</Link><Link href="/#contacts">Обсудить схему с мастером →</Link><Button className="va-no-print" variant="ghost" onClick={() => { setUndo(project); setProject(newAuditProject()); setOpeningId(null); setStep(0); setNotice("Начат новый проект. Прежний можно вернуть кнопкой «Отменить».") }}><RotateCcw data-icon="inline-start" />Начать заново</Button></footer>
     </main>
-  </div>
+  </div></CalculatorUsage>
 }
