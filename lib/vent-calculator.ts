@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { applyQuantityDiscount, calculateHolePrice, priceRates, type MaterialKey } from "./site-data"
+import { calculateHolePrice, priceRates, quoteOrder, type MaterialKey } from "./site-data"
 
 export type ContourStep = { id: string; length: number; turn: "left" | "right" }
 
@@ -215,7 +215,8 @@ export function pointOnWall(wall: FoundationWall, offset: number): FoundationPoi
 export type VentVariant = {
   id: string; diameterMm: number; vents: VentPlacement[]; externalCount: number;
   internalCount: number; totalCount: number; freeArea: number; coverage: number;
-  pricePerHole: number; totalPrice: number; discountPercent: number; discountAmount: number; finalPrice: number;
+  /** totalPrice is drilling before the discount; finalPrice is the whole order: discounted drilling, call-out and any top-up to the minimum order. */
+  pricePerHole: number; totalPrice: number; discountPercent: number; discountAmount: number; callOutFee: number; minimumTopUp: number; finalPrice: number;
   feasible: boolean; warnings: string[];
 }
 
@@ -447,12 +448,12 @@ function calculateVariant(value: FoundationInput, geometry: FoundationGeometry, 
   const freeArea = outsideCount * oneFreeArea
   const pricePerHole = calculateHolePrice({ diameterMm, material: value.material, depthMm: value.thickness, atHeight: false, underFloor: value.underFloor })
   const totalPrice = vents.length * pricePerHole
-  const discount = applyQuantityDiscount(totalPrice, vents.length)
+  const quote = quoteOrder(totalPrice, vents.length)
   return {
     id: `diameter-${diameterMm}`, diameterMm, vents, externalCount: outsideCount,
     internalCount: insideCount, totalCount: vents.length, freeArea,
     coverage: freeArea / requiredArea, pricePerHole, totalPrice,
-    discountPercent: discount.percent, discountAmount: discount.discountAmount, finalPrice: discount.total,
+    discountPercent: quote.percent, discountAmount: quote.discountAmount, callOutFee: quote.callOutFee, minimumTopUp: quote.minimumTopUp, finalPrice: quote.total,
     feasible: feasible && freeArea >= requiredArea - EPSILON, warnings: [...new Set(warnings)],
   }
 }
@@ -551,12 +552,12 @@ export function summarizeManualVents(value: FoundationInput, geometry: Foundatio
   const freeArea = externalCount * oneFreeArea
   const pricePerHole = calculateHolePrice({ diameterMm, material: value.material, depthMm: value.thickness, atHeight: false, underFloor: value.underFloor })
   const totalPrice = vents.length * pricePerHole
-  const discount = applyQuantityDiscount(totalPrice, vents.length)
+  const quote = quoteOrder(totalPrice, vents.length)
   const warnings = manualVentWarnings(value, geometry, vents, diameterMm)
   return {
     id: "manual", diameterMm, vents, externalCount, internalCount, totalCount: vents.length, freeArea,
     coverage: freeArea / requiredArea, pricePerHole, totalPrice,
-    discountPercent: discount.percent, discountAmount: discount.discountAmount, finalPrice: discount.total,
+    discountPercent: quote.percent, discountAmount: quote.discountAmount, callOutFee: quote.callOutFee, minimumTopUp: quote.minimumTopUp, finalPrice: quote.total,
     feasible: !warnings.length && freeArea >= requiredArea - EPSILON, warnings,
   }
 }

@@ -17,11 +17,13 @@ import { CalculatorUsage } from "@/components/calculator-usage"
 import { crownDiameters } from "@/lib/diameter-catalog"
 import { CALCULATORS } from "@/lib/metrika"
 import {
-  applyQuantityDiscount,
   calculateHolePrice,
   materialOptions,
+  orderTermsText,
   pricingConfig,
   quantityDiscountTiers,
+  quoteOrder,
+  surchargeLabel,
   type MaterialKey,
 } from "@/lib/site-data"
 
@@ -98,8 +100,7 @@ export function PriceCalculator() {
 
   const totalQuantity = priced.reduce((sum, row) => sum + row.quantityValue, 0)
   const subtotal = priced.reduce((sum, row) => sum + row.total, 0)
-  const discount = applyQuantityDiscount(subtotal, totalQuantity)
-  const total = discount.total
+  const quote = quoteOrder(subtotal, totalQuantity)
 
   const nextTier = useMemo(() => {
     const ascending = [...quantityDiscountTiers].sort((a, b) => a.minQuantity - b.minQuantity)
@@ -115,7 +116,7 @@ export function PriceCalculator() {
         <div>
           <h3 className="font-bold">Рассчитайте стоимость</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Добавьте позиции с разными диаметрами и материалами — например, 1 отверстие Ø120 в бетоне и 4 отверстия Ø132 в кирпиче. Минимум {rub(pricingConfig.minHolePrice)} за отверстие.
+            Добавьте позиции с разными диаметрами и материалами — например, 1 отверстие Ø120 в бетоне и 4 отверстия Ø132 в кирпиче. {orderTermsText}
           </p>
         </div>
 
@@ -221,7 +222,7 @@ export function PriceCalculator() {
                       onClick={() => updateRow(row.id, { atHeight: !row.atHeight })}
                     >
                       <ArrowUp data-icon="inline-start" />
-                      На высоте (+{rub(pricingConfig.heightSurcharge)})
+                      На высоте ({surchargeLabel(pricingConfig.heightMultiplier)})
                     </Button>
                     <Button
                       type="button"
@@ -231,7 +232,7 @@ export function PriceCalculator() {
                       onClick={() => updateRow(row.id, { underFloor: !row.underFloor })}
                     >
                       <ChevronsDown data-icon="inline-start" />
-                      В подполе (+{rub(pricingConfig.underFloorSurcharge)})
+                      В подполе ({surchargeLabel(pricingConfig.underFloorMultiplier)})
                     </Button>
                   </div>
                 </div>
@@ -251,49 +252,63 @@ export function PriceCalculator() {
       <div className="flex flex-col justify-between gap-6 border-t border-border bg-secondary p-6 text-secondary-foreground lg:border-t-0 lg:border-l">
         <div>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">Ориентировочная стоимость</p>
-            {discount.percent > 0 && (
+            <p className="text-sm text-muted-foreground">Ориентировочная стоимость заказа</p>
+            {quote.percent > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
                 <Tag data-icon="inline-start" className="size-3.5" />
-                -{discount.percent}% за объём
+                -{quote.percent}% за объём
               </span>
             )}
           </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            {discount.percent > 0 && (
-              <span className="font-mono text-lg text-muted-foreground line-through">{rub(subtotal)}</span>
-            )}
-            <p className="font-mono text-4xl font-black tracking-tight">{rub(total)}</p>
-          </div>
+          <p className="mt-1 font-mono text-4xl font-black tracking-tight">{rub(quote.total)}</p>
 
-          {multiRow ? (
-            <ul className="mt-4 flex flex-col gap-2 text-sm">
-              {priced.map((row, index) => (
+          <ul className="mt-4 flex flex-col gap-2 text-sm">
+            {multiRow ? (
+              priced.map((row, index) => (
                 <li key={row.id} className="flex items-baseline justify-between gap-3">
                   <span className="text-muted-foreground">
                     {index + 1}. {row.quantityValue} × Ø{row.diameterMm} · {materialLabel(row.material)} · {row.depth} мм
                   </span>
                   <span className="shrink-0 font-mono font-medium">{rub(row.total)}</span>
                 </li>
-              ))}
-              <li className="flex items-baseline justify-between gap-3 border-t border-border pt-2 font-medium">
-                <span>
-                  Всего {totalQuantity} {holesWord(totalQuantity)}
+              ))
+            ) : (
+              <li className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Бурение: {totalQuantity > 1 ? `${rub(priced[0].unitPrice)} × ${totalQuantity} отв.` : "1 отверстие"}
                 </span>
-                <span className="shrink-0 font-mono">{rub(subtotal)}</span>
+                <span className="shrink-0 font-mono font-medium">{rub(subtotal)}</span>
               </li>
-            </ul>
-          ) : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {totalQuantity > 1 ? `${rub(priced[0].unitPrice)} × ${totalQuantity} отв.` : "1 отверстие"}, минимум {rub(pricingConfig.minHolePrice)} за отверстие
-            </p>
-          )}
+            )}
+            {quote.percent > 0 && (
+              <li className="flex items-baseline justify-between gap-3 text-primary">
+                <span>Скидка за количество ({quote.percent}%)</span>
+                <span className="shrink-0 font-mono font-medium">−{rub(quote.discountAmount)}</span>
+              </li>
+            )}
+            <li className="flex items-baseline justify-between gap-3">
+              <span className="text-muted-foreground">Выезд и подготовка</span>
+              <span className="shrink-0 font-mono font-medium">{rub(quote.callOutFee)}</span>
+            </li>
+            {quote.minimumTopUp > 0 && (
+              <li className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">До минимального заказа {rub(pricingConfig.minOrderPrice)}</span>
+                <span className="shrink-0 font-mono font-medium">{rub(quote.minimumTopUp)}</span>
+              </li>
+            )}
+            <li className="flex items-baseline justify-between gap-3 border-t border-border pt-2 font-medium">
+              <span>
+                Итого за {totalQuantity} {holesWord(totalQuantity)}
+              </span>
+              <span className="shrink-0 font-mono">{rub(quote.total)}</span>
+            </li>
+          </ul>
 
-          {discount.percent > 0 ? (
-            <p className="mt-2 text-sm font-medium text-primary">Экономия {rub(discount.discountAmount)} благодаря скидке за количество</p>
+          {quote.percent > 0 ? (
+            <p className="mt-2 text-sm font-medium text-primary">Экономия {rub(quote.discountAmount)} благодаря скидке за количество</p>
           ) : nextTier ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              Ещё {nextTier.minQuantity - totalQuantity} {holesWord(nextTier.minQuantity - totalQuantity)} — и скидка {nextTier.percent}%
+              Ещё {nextTier.minQuantity - totalQuantity} {holesWord(nextTier.minQuantity - totalQuantity)} — и скидка {nextTier.percent}% на бурение
               {multiRow && " (считается по всем позициям)"}
             </p>
           ) : null}

@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { applyQuantityDiscount, calculateHolePrice } from "./site-data"
+import { calculateHolePrice, orderTermsText, pricingConfig, quoteOrder, surchargeLabel } from "./site-data"
 import { equipmentCatalog, type ToolId } from "./tools-catalog"
 import { crownDiameters, diameterSources, type DiameterOption } from "./diameter-catalog"
 
@@ -42,7 +42,7 @@ export const fmt = (value: number, digits = 1) => value.toLocaleString("ru-RU", 
 export const money = (value: number) => `${fmt(value, 0)} ₽`
 const price = (diameterMm: number, value: Pick<EstimateRow, "material" | "depth" | "atHeight" | "underFloor">) => calculateHolePrice({ diameterMm, material: value.material, depthMm: value.depth, atHeight: value.atHeight, underFloor: value.underFloor })
 export type ToolResult = { metrics: { label: string; value: string }[]; summary: string; notes: string[]; data: Record<string, unknown> }
-const priceNote = "Предварительная стоимость бурения по тарифам SUNBUR. Выезд, оборудование, расходные материалы для монтажа и непредусмотренные работы не включены."
+const priceNote = `Предварительная стоимость по тарифам SUNBUR. ${orderTermsText} Монтаж, расходные материалы и непредусмотренные работы не включены.`
 const structureNote = "Место прохода, арматуру, коммуникации и возможность бурения проверяют на объекте."
 
 // Magnus approximation over liquid water (0–50 °C); not a frost-point model.
@@ -106,28 +106,29 @@ export function calculateHomeTool(raw: ToolInput): ToolResult {
       // Manufacturer hole dimensions must not be silently rounded up to another crown.
       const selected = crownDiameters.find(size => size === required) ?? null
       const cost = selected ? price(selected, input) : null
-      return { metrics: [{ label: "Отверстие по инструкции", value: `Ø ${required} мм` }, { label: "Толщина стены", value: `${input.depth} мм` }, { label: "Бурение", value: cost === null ? "По согласованию" : money(cost) }], summary: `${model?.name ?? "Ваш прибор"}: ${selected ? "такая коронка есть в справочнике." : "уточните наличие коронки; увеличивать диаметр без согласования нельзя."}`, notes: [model?.note ?? "Размер введён пользователем. Проверьте инструкцию производителя.", "Допустимую толщину стены, уклон, отступы и крепления проверьте по монтажной схеме. Прибор, электрика и установка в цену не входят.", structureNote, priceNote], data: { required, selected, cost, model: model ?? null } }
+      return { metrics: [{ label: "Отверстие по инструкции", value: `Ø ${required} мм` }, { label: "Толщина стены", value: `${input.depth} мм` }, { label: "Заказ с выездом", value: cost === null ? "По согласованию" : money(quoteOrder(cost, 1).total) }], summary: `${model?.name ?? "Ваш прибор"}: ${selected ? "такая коронка есть в справочнике." : "уточните наличие коронки; увеличивать диаметр без согласования нельзя."}`, notes: [model?.note ?? "Размер введён пользователем. Проверьте инструкцию производителя.", "Допустимую толщину стены, уклон, отступы и крепления проверьте по монтажной схеме. Прибор, электрика и установка в цену не входят.", structureNote, priceNote], data: { required, selected, cost, model: model ?? null } }
     }
     case "estimate": {
       const rows = input.rows.map(row => ({ ...row, unitPrice: price(row.diameter, row), total: price(row.diameter, row) * row.quantity }))
       const count = rows.reduce((sum, row) => sum + row.quantity, 0)
       const subtotal = rows.reduce((sum, row) => sum + row.total, 0)
-      const discount = applyQuantityDiscount(subtotal, count)
+      const quote = quoteOrder(subtotal, count)
+      const surcharges = `Надбавки за высоту (${surchargeLabel(pricingConfig.heightMultiplier)}) и подпол (${surchargeLabel(pricingConfig.underFloorMultiplier)}) применяются к каждому отверстию отмеченной позиции.`
       return {
         metrics: [
           { label: "Всего отверстий", value: String(count) },
           { label: "Позиций в смете", value: String(rows.length) },
-          { label: "Бурение, ориентир", value: discount.percent > 0 ? `${money(discount.total)} (скидка ${discount.percent}%)` : money(discount.total) },
+          { label: "Итого с выездом", value: quote.percent > 0 ? `${money(quote.total)} (скидка ${quote.percent}%)` : money(quote.total) },
         ],
         summary: "Смета готова к обсуждению с мастером. Все позиции и доплаты сохраняются при печати.",
         notes: [
           priceNote,
-          discount.percent > 0
-            ? `Применена скидка за количество ${discount.percent}% на общее число отверстий (${count} шт.): −${money(discount.discountAmount)}. Доплаты за высоту и подпол применяются к каждому отверстию отмеченной позиции. Стоимость выезда не рассчитана.`
-            : "Доплаты за высоту и подпол применяются к каждому отверстию отмеченной позиции. Скидка за количество применяется автоматически при увеличении общего числа отверстий в смете. Стоимость выезда не рассчитана.",
+          quote.percent > 0
+            ? `Применена скидка за количество ${quote.percent}% на бурение по общему числу отверстий (${count} шт.): −${money(quote.discountAmount)}. ${surcharges}`
+            : `${surcharges} Скидка за количество применяется к бурению автоматически при увеличении общего числа отверстий в смете.`,
           structureNote,
         ],
-        data: { rows, subtotal, total: discount.total, discountPercent: discount.percent, discountAmount: discount.discountAmount, count },
+        data: { rows, subtotal, total: quote.total, discountPercent: quote.percent, discountAmount: quote.discountAmount, callOutFee: quote.callOutFee, minimumTopUp: quote.minimumTopUp, count },
       }
     }
     case "moisture": {

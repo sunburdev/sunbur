@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { DEFAULT_FOUNDATION, foundationInputSchema, getFoundationGeometry, type FoundationWall, type FoundationPoint } from "./vent-calculator"
-import { calculateHolePrice } from "./site-data"
+import { calculateHolePrice, quoteOrder } from "./site-data"
 
 const n = (min: number, max: number) => z.number().finite().min(min).max(max)
 const id = z.string().min(1).max(60)
@@ -208,6 +208,11 @@ export function inspectSystem(p: AuditProject, openings = p.openings, c = auditC
     meetsModel: !issues.some(i => i.level === "problem"), complete: !issues.some(i => i.level === "unknown"), rooms: c.rooms }
 }
 
+/** Prices the new holes of a proposal as one visit: discount, call-out and minimum order. Enlargements are priced on site. */
+function orderCost(actions: Action[]) {
+  const priced = actions.filter(a => a.price !== null)
+  return priced.length ? quoteOrder(priced.reduce((sum, a) => sum + a.price!, 0), priced.length).total : 0
+}
 export type Proposal = { id: string; title: string; actions: Action[]; openings: Opening[]; after: ReturnType<typeof inspectSystem>; knownCost: number; costComplete: boolean; solved: boolean; limited: boolean }
 const DIAMETERS = [132, 152, 162, 200, 250]
 export function calculateAudit(raw: AuditProject) {
@@ -279,7 +284,7 @@ export function calculateAudit(raw: AuditProject) {
         if (iteration === 99 && !state.meetsModel) limited = true
       }
       const after = inspectSystem(p, openings, c)
-      proposals.push({ id: strategy, title: strategy === "new" ? "Сохранить размеры старых" : "Рассмотреть расширение", actions, openings, after, knownCost: actions.reduce((sum, a) => sum + (a.price ?? 0), 0), costComplete: actions.every(a => a.price !== null), solved: after.meetsModel, limited })
+      proposals.push({ id: strategy, title: strategy === "new" ? "Сохранить размеры старых" : "Рассмотреть расширение", actions, openings, after, knownCost: orderCost(actions), costComplete: actions.every(a => a.price !== null), solved: after.meetsModel, limited })
     }
   }
   return { geometry: c.geometry, cells: c.cells, before, proposals, blocked: block || uncertain,
