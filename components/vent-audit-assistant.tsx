@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { type AuditProject, openingSize } from "@/lib/vent-audit"
 import { applyAssistantEdit, type AssistantEdit } from "@/lib/vent-assistant"
+import { CALCULATORS, GOALS, trackCalculator } from "@/lib/metrika"
 
 type Message = { role: "user" | "assistant"; content: string; edits?: AssistantEdit | null; applied?: boolean }
 export function VentAuditAssistant({ project, step, proposalId, onApply, valid }: {
@@ -38,6 +39,7 @@ export function VentAuditAssistant({ project, step, proposalId, onApply, valid }
       if (!response.ok) throw new Error(data.error || "Не удалось получить ответ.")
       if (seq !== serial.current) return
       setConfigured(true); setMessages([...current, { role: "user", content: text }, { role: "assistant", content: data.answer, edits: data.edits }])
+      trackCalculator(GOALS.aiQuestion, CALCULATORS.ventAudit)
     } catch (e) {
       if (seq === serial.current) { setError(controller.signal.aborted ? "Ответ занял слишком много времени. Попробуйте ещё раз." : e instanceof Error ? e.message : "Не удалось связаться с помощником."); setQuestion(text) }
     } finally { clearTimeout(timeout); if (seq === serial.current) setBusy(false) }

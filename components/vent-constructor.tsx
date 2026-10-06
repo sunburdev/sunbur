@@ -13,6 +13,8 @@ import type { ContourStep, FoundationInput, VentPlacement } from "@/lib/vent-cal
 import { materialOptions } from "@/lib/site-data"
 import { ContourEditor } from "@/components/foundation-contour-editor"
 import { useHistory } from "@/lib/use-history"
+import { CalculatorUsage } from "@/components/calculator-usage"
+import { CALCULATORS, GOALS, trackCalculator } from "@/lib/metrika"
 
 // Konva draws to a real canvas and reaches for `window` as it loads, so the plan
 // editor is client-only. The placeholder keeps the viewport from collapsing while
@@ -172,6 +174,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     const anchor = document.createElement("a")
     anchor.href = url; anchor.download = "sunbur-produhi.json"; anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+    trackCalculator(GOALS.save, CALCULATORS.ventConstructor)
     setNotice("Проект сохранён. Его можно открыть здесь снова.")
   }
 
@@ -200,6 +203,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Не удалось получить ответ")
       setAdvice({ answer: data.answer, source: data.source, signature })
+      trackCalculator(GOALS.aiQuestion, CALCULATORS.ventConstructor)
       setQuestion("")
     } catch (error) {
       if (controller.signal.aborted) setAdviceError("Ответ занял слишком много времени. Попробуйте ещё раз.")
@@ -207,9 +211,11 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
     } finally { clearTimeout(timeout); setBusy(false) }
   }
 
+  function print() { trackCalculator(GOALS.print, CALCULATORS.ventConstructor); window.print() }
+
   function submitQuestion(event: FormEvent) { event.preventDefault(); void askAdvisor(question) }
 
-  return <div className="vent-studio">
+  return <CalculatorUsage calculator={CALCULATORS.ventConstructor}><div className="vent-studio">
     <header className="vc-header vc-no-print">
       <Link href="/" className="vc-brand" aria-label="SUNBUR — на главную"><BrandMark className="vc-brand-icon" />SUNBUR<span className="vc-brand-divider" /> <span className="vc-brand-sub">инструменты для вашего дома</span></Link>
       <div className="vc-header-actions"><Link className="vc-back" href="/uslugi/produhi-v-fundamente"><ArrowLeft size={15} /> Об услуге</Link><ThemeToggle /></div>
@@ -309,7 +315,7 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
         </section>}
 
         <div className="vc-bottom-grid">
-          <section className="vc-panel vc-placement"><div className="vc-panel-title"><h2><Ruler size={17} /> Схема размещения</h2><button className="vc-button vc-no-print" onClick={() => window.print()}><Printer size={15} /> Печать / PDF</button></div>
+          <section className="vc-panel vc-placement"><div className="vc-panel-title"><h2><Ruler size={17} /> Схема размещения</h2><button className="vc-button vc-no-print" onClick={print}><Printer size={15} /> Печать / PDF</button></div>
             <div className="vc-wall-filter vc-no-print"><label htmlFor="vc-wall">Выберите стену</label><div className="vc-select"><select id="vc-wall" value={selectedWall ?? ""} onChange={(event) => setSelectedWall(event.target.value || null)}><option value="">Все стены</option>{result.geometry.walls.map((wall) => <option key={wall.id} value={wall.id}>{wall.label}{wall.internal ? " · внутренняя" : ""}</option>)}</select><ChevronDown size={14} /></div></div>
             <div className="vc-table-wrap"><table><thead><tr><th>Стена</th><th>Длина</th><th>Центры от начала стены, м</th></tr></thead><tbody>{result.geometry.walls.map((wall) => { const vents = (activeVariant?.vents ?? []).filter((vent) => vent.wallId === wall.id).sort((a, b) => a.offset - b.offset); return <tr key={wall.id} className={selectedWall && wall.id !== selectedWall ? "vc-filtered-wall" : undefined}><td><strong>{wall.label}</strong><small>{wall.internal ? "Внутренняя" : "Наружная"}</small><small className="vc-print-origin">Начало X {number(wall.start.x)}, Z {number(wall.start.z)}; конец X {number(wall.end.x)}, Z {number(wall.end.z)} м</small></td><td>{number(Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z))} м</td><td>{vents.length ? vents.map((vent) => number(vent.offset, 2)).join(" · ") : "Нет отверстий"}</td></tr> })}</tbody></table></div>
             {chosenWall && <p className="vc-table-note">Начало выбранной стены: X {number(chosenWall.start.x)} м, Z {number(chosenWall.start.z)} м. Конец: X {number(chosenWall.end.x)} м, Z {number(chosenWall.end.z)} м.</p>}
@@ -331,5 +337,5 @@ export function VentConstructor({ children }: { children?: ReactNode }) {
       {children}
       <footer className="vc-footer"><Link href="/">SUNBUR<span> · алмазное бурение</span></Link><span>От идеи — к точному отверстию.</span><Link className="vc-no-print" href="/#contacts">Обсудить с мастером <ArrowRight size={14} /></Link></footer>
     </main>
-  </div>
+  </div></CalculatorUsage>
 }
