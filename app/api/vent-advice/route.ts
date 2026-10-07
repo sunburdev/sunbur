@@ -97,7 +97,7 @@ function deterministicAdvice(input: FoundationInput, calculation: Calculation, s
   const { cheapest, savings } = comparison(calculation, selected)
   const paragraphs = [
     `Расчётное пояснение: площадь контура по осям стен ${number(calculation.geometry.area)} м². Для выбранной доли 1/${input.areaRatio} целевая свободная площадь наружных продухов — ${number(calculation.requiredArea, 4)} м².`,
-    `Вариант Ø${selected.diameterMm} мм: ${selected.externalCount} наружных + ${selected.internalCount} внутренних отверстий, всего ${selected.totalCount}. Свободная наружная площадь с учётом решётки — ${number(selected.freeArea, 4)} м². Ориентир бурения — ${rubles(selected.finalPrice)}${discountNote(selected)} (${rubles(selected.pricePerHole)} за отверстие).${selected.feasible ? " Вариант проходит заданные ограничения калькулятора." : " Вариант не проходит заданные ограничения; использовать эту раскладку как готовое решение нельзя."}`,
+    `Вариант Ø${selected.diameterMm} мм: ${selected.externalCount} наружных + ${selected.internalCount} внутренних отверстий, всего ${selected.totalCount}. Свободная наружная площадь с учётом решётки — ${number(selected.freeArea, 4)} м². Ориентир заказа с выездом и подготовкой — ${rubles(selected.finalPrice)}${discountNote(selected)} (${rubles(selected.pricePerHole)} за отверстие).${selected.feasible ? " Вариант проходит заданные ограничения калькулятора." : " Вариант не проходит заданные ограничения; использовать эту раскладку как готовое решение нельзя."}`,
     cheapest
       ? savings > 0
         ? `Из рассчитанных вариантов дешевле Ø${cheapest.diameterMm} мм: ${cheapest.totalCount} отверстий за ${rubles(cheapest.finalPrice)}${discountNote(cheapest)}. Разница — ${rubles(savings)}. Это сравнение стоимости бурения по текущим тарифам, без стоимости решёток и дополнительных работ.`
@@ -135,6 +135,8 @@ function contextForModel(input: FoundationInput, calculation: Calculation, selec
     totalPriceRub: variant.totalPrice,
     discountPercent: variant.discountPercent,
     discountAmountRub: variant.discountAmount,
+    callOutFeeRub: variant.callOutFee,
+    minimumTopUpRub: variant.minimumTopUp,
     finalPriceRub: variant.finalPrice,
     feasible: variant.feasible,
     warnings: variant.warnings,

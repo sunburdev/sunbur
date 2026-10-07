@@ -150,11 +150,13 @@ export function ToolStudio({ id }: { id: ToolId }) {
         {result && input.kind === "diameter" && <ToolDiameterComparison input={input} result={result} onSelect={preferredDiameter => patch({ preferredDiameter })} />}
         {result && <section className="tools-summary"><h3>{result.summary}</h3><ul>{result.notes.map(note => <li key={note}>{note}</li>)}</ul></section>}
         {result && input.kind === "estimate" && (() => {
-          const { subtotal, total, discountPercent, discountAmount } = result.data as { subtotal: number; total: number; discountPercent: number; discountAmount: number }
+          const { subtotal, total, discountPercent, discountAmount, callOutFee, minimumTopUp } = result.data as { subtotal: number; total: number; discountPercent: number; discountAmount: number; callOutFee: number; minimumTopUp: number }
           return <div className="tools-table-wrap"><table><caption>Детализация сметы</caption><thead><tr><th>Позиция</th><th>Параметры</th><th>Кол-во</th><th>За одно</th><th>Сумма</th></tr></thead><tbody>{(result.data.rows as (EstimateRow & { unitPrice: number; total: number })[]).map((row, i) => <tr key={i}><td>{i + 1}</td><td>Ø{row.diameter} · {row.depth} мм · {materialOptions.find(m => m.value === row.material)?.label}{row.atHeight && " · на высоте"}{row.underFloor && " · в подполе"}</td><td>{row.quantity}</td><td>{money(row.unitPrice)}</td><td>{money(row.total)}</td></tr>)}</tbody>
             <tfoot>
-              {discountPercent > 0 && <tr><td colSpan={4}>Без скидки</td><td>{money(subtotal)}</td></tr>}
-              {discountPercent > 0 && <tr><td colSpan={4}>Скидка за количество ({discountPercent}%)</td><td>−{money(discountAmount)}</td></tr>}
+              <tr><td colSpan={4}>Бурение{discountPercent > 0 ? " без скидки" : ""}</td><td>{money(subtotal)}</td></tr>
+              {discountPercent > 0 && <tr><td colSpan={4}>Скидка за количество на бурение ({discountPercent}%)</td><td>−{money(discountAmount)}</td></tr>}
+              <tr><td colSpan={4}>Выезд и подготовка</td><td>{money(callOutFee)}</td></tr>
+              {minimumTopUp > 0 && <tr><td colSpan={4}>Доплата до минимального заказа</td><td>{money(minimumTopUp)}</td></tr>}
               <tr><td colSpan={4}><strong>Итого к оплате</strong></td><td><strong>{money(total)}</strong></td></tr>
             </tfoot>
           </table></div>

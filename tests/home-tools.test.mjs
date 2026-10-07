@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
 } })
 const { calculateHomeTool, defaultToolInput, defaultRow, dewPoint, toolInputSchema } = await import("../lib/home-tools.ts")
-const { applyQuantityDiscount, calculateHolePrice, getRatePerCm, priceRates } = await import("../lib/site-data.ts")
+const { calculateHolePrice, getRatePerCm, priceRates, pricingConfig, quoteOrder } = await import("../lib/site-data.ts")
 const { toolsCatalog } = await import("../lib/tools-catalog.ts")
 
 test("all catalog tools have valid defaults and finite results", () => {
@@ -114,16 +114,33 @@ test("manufacturer hole sizes are exact, not rounded to an oversized crown", () 
   assert.equal(custom.data.selected, null)
   assert.equal(custom.data.cost, null)
 })
-test("estimate uses shared tariffs including depth and per-hole surcharges, with a quantity discount on the total", () => {
-  const rows = [{ ...defaultRow, quantity: 3 }, { ...defaultRow, material: "brick", depth: 600, diameter: 200, quantity: 2, atHeight: true, underFloor: true }]
+test("estimate uses shared tariffs including depth and condition multipliers, then prices the order once", () => {
+  const rows = [{ ...defaultRow, quantity: 8 }, { ...defaultRow, material: "brick", depth: 600, diameter: 200, quantity: 2, atHeight: true, underFloor: true }]
   const result = calculateHomeTool({ kind: "estimate", rows })
   const subtotal = rows.reduce((sum, r) => sum + r.quantity * calculateHolePrice({ diameterMm: r.diameter, material: r.material, depthMm: r.depth, atHeight: r.atHeight, underFloor: r.underFloor }), 0)
-  const discount = applyQuantityDiscount(subtotal, 5)
-  assert.equal(result.data.count, 5)
+  const quote = quoteOrder(subtotal, 10)
+  assert.equal(result.data.count, 10)
   assert.equal(result.data.subtotal, subtotal)
-  assert.equal(result.data.discountPercent, discount.percent)
-  assert.equal(result.data.discountAmount, discount.discountAmount)
-  assert.equal(result.data.total, discount.total)
+  assert.equal(result.data.discountPercent, 5)
+  assert.equal(result.data.discountAmount, quote.discountAmount)
+  assert.equal(result.data.callOutFee, pricingConfig.callOutFee)
+  assert.equal(result.data.total, subtotal - quote.discountAmount + pricingConfig.callOutFee)
+})
+test("hole price applies the per-hole minimum, extra depth and condition multipliers", () => {
+  const plain = { diameterMm: 132, material: "concrete", depthMm: 300, atHeight: false, underFloor: false }
+  assert.equal(calculateHolePrice(plain), 38 * 30)
+  assert.equal(calculateHolePrice({ ...plain, depthMm: 400 }), Math.round(38 * 30 + 38 * 10 * pricingConfig.extendedDepthRateMultiplier))
+  assert.equal(calculateHolePrice({ ...plain, depthMm: 100 }), pricingConfig.minHolePrice)
+  assert.equal(calculateHolePrice({ ...plain, atHeight: true, underFloor: true }), Math.round(38 * 30 * pricingConfig.heightMultiplier * pricingConfig.underFloorMultiplier))
+})
+test("an order pays the call-out once, gets a discount only on drilling and never goes below the minimum", () => {
+  const single = quoteOrder(800, 1)
+  assert.equal(single.total, pricingConfig.minOrderPrice)
+  assert.equal(single.minimumTopUp, pricingConfig.minOrderPrice - pricingConfig.callOutFee - 800)
+  const mid = quoteOrder(4000, 3)
+  assert.deepEqual([mid.percent, mid.minimumTopUp, mid.total], [0, 0, 4000 + pricingConfig.callOutFee])
+  const series = quoteOrder(20000, 20)
+  assert.deepEqual([series.percent, series.discountAmount, series.minimumTopUp, series.total], [10, 2000, 0, 18000 + pricingConfig.callOutFee])
 })
 test("dew point matches reference values, saturation and equal-pressure comparison", () => {
   assert.ok(Math.abs(dewPoint(20, 50) - 9.26) < .05)
@@ -161,14 +178,14 @@ test("invalid inputs, oversized lists and forged data are rejected", () => {
 
 test("standard crowns between tariff rows are priced by interpolation between neighbours", () => {
   for (const row of priceRates) assert.equal(getRatePerCm(row.diameterMm, "brick"), row.brick)
-  assert.equal(getRatePerCm(32, "concrete"), 30)
-  assert.equal(getRatePerCm(122, "concrete"), 43.5)
+  assert.equal(getRatePerCm(32, "concrete"), priceRates[0].concrete)
+  assert.equal(getRatePerCm(122, "concrete"), 37)
   const r120 = getRatePerCm(120, "brick")
-  assert.ok(r120 > 37 && r120 < 40)
+  assert.ok(r120 > 22 && r120 < 24)
   const mixed = calculateHomeTool({ kind: "estimate", rows: [
     { ...defaultRow, diameter: 120, material: "concrete", quantity: 1 },
-    { ...defaultRow, diameter: 132, material: "brick", quantity: 4 },
+    { ...defaultRow, diameter: 132, material: "brick", quantity: 9 },
   ] })
-  assert.equal(mixed.data.count, 5)
+  assert.equal(mixed.data.count, 10)
   assert.equal(mixed.data.discountPercent, 5)
 })

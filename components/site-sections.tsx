@@ -17,7 +17,7 @@ import {
   Waves,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { locations, prices, pricingConfig, services, site, works } from "@/lib/site-data"
+import { locations, lowestRates, orderTermsText, prices, services, site, works } from "@/lib/site-data"
 import { locationSlug } from "@/lib/content"
 import { BoreReticle, Counter, Reveal } from "@/components/animations"
 import { BeforeAfterSlider } from "@/components/before-after"
@@ -45,7 +45,7 @@ export function Hero() {
   const stats = [
     { to: 250, suffix: " мм", label: "макс. диаметр" },
     { to: 12, suffix: "+", label: "населённых пунктов" },
-    { to: 25, prefix: "от ", suffix: " ₽/см", label: "стоимость" },
+    { to: lowestRates.brick, prefix: "от ", suffix: " ₽/см", label: "стоимость" },
   ]
   return (
     <section className="relative overflow-hidden border-b border-border bg-background">
@@ -229,7 +229,7 @@ export function PricingTable() {
           <PriceCalculator />
         </Reveal>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Стоимость зависит от диаметра, материала, толщины конструкции, количества отверстий, наличия арматуры и условий работы. Минимальная стоимость одного отверстия — {pricingConfig.minHolePrice.toLocaleString("ru-RU")} ₽ независимо от глубины.
+          Стоимость зависит от диаметра, материала, толщины конструкции, количества отверстий, наличия арматуры и условий работы. {orderTermsText}
         </p>
       </div>
     </section>

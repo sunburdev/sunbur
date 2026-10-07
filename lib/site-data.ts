@@ -52,18 +52,20 @@ export const services = [
   { title: "Электрика", description: "Технологические отверстия под кабельные трассы и вводы.", href: "/uslugi/almaznoe-burenie", icon: Cable },
 ]
 
-// Base rates in ₽ per cm of depth, by diameter and material.
-// Source of truth for both the price table and the calculator below.
+// Rates in ₽ per cm of depth, by diameter and material — exactly what the calculator charges,
+// with no hidden multipliers. Calibrated in October 2026 against Moscow-region price lists
+// (see docs/pricing.md): concrete and reinforced concrete about 10% below the market median,
+// brick about 20% below it, because brick drills several times faster and wears crowns less.
 export const priceRates = [
-  { diameterMm: 52, diameterLabel: "до 52 мм", concrete: 30, reinforced: 40, brick: 25 },
-  { diameterMm: 82, diameterLabel: "82 мм", concrete: 35, reinforced: 45, brick: 30 },
-  { diameterMm: 102, diameterLabel: "102 мм", concrete: 40, reinforced: 50, brick: 35 },
-  { diameterMm: 112, diameterLabel: "112 мм", concrete: 42, reinforced: 55, brick: 37 },
-  { diameterMm: 132, diameterLabel: "132 мм", concrete: 45, reinforced: 60, brick: 40 },
-  { diameterMm: 152, diameterLabel: "152 мм", concrete: 50, reinforced: 70, brick: 45 },
-  { diameterMm: 162, diameterLabel: "162 мм", concrete: 55, reinforced: 75, brick: 48 },
-  { diameterMm: 200, diameterLabel: "200 мм", concrete: 70, reinforced: 95, brick: 60 },
-  { diameterMm: 250, diameterLabel: "250 мм", concrete: 90, reinforced: 120, brick: 75 },
+  { diameterMm: 52, diameterLabel: "до 52 мм", concrete: 25, reinforced: 31, brick: 16 },
+  { diameterMm: 82, diameterLabel: "82 мм", concrete: 29, reinforced: 36, brick: 19 },
+  { diameterMm: 102, diameterLabel: "102 мм", concrete: 33, reinforced: 42, brick: 22 },
+  { diameterMm: 112, diameterLabel: "112 мм", concrete: 36, reinforced: 45, brick: 22 },
+  { diameterMm: 132, diameterLabel: "132 мм", concrete: 38, reinforced: 49, brick: 24 },
+  { diameterMm: 152, diameterLabel: "152 мм", concrete: 41, reinforced: 52, brick: 26 },
+  { diameterMm: 162, diameterLabel: "162 мм", concrete: 43, reinforced: 54, brick: 27 },
+  { diameterMm: 200, diameterLabel: "200 мм", concrete: 54, reinforced: 72, brick: 36 },
+  { diameterMm: 250, diameterLabel: "250 мм", concrete: 77, reinforced: 99, brick: 48 },
 ] as const
 
 export type MaterialKey = "concrete" | "reinforced" | "brick"
@@ -81,27 +83,48 @@ export const prices = priceRates.map(({ diameterLabel, concrete, reinforced, bri
   brick: `от ${brick} ₽/см`,
 }))
 
+/** Lowest rate per cm for each material, for "from" prices in copy. */
+export const lowestRates = {
+  brick: Math.min(...priceRates.map((row) => row.brick)),
+  concrete: Math.min(...priceRates.map((row) => row.concrete)),
+  reinforced: Math.min(...priceRates.map((row) => row.reinforced)),
+}
+
 export const pricingConfig = {
-  minHolePrice: 3000,
-  heightSurcharge: 1500,
-  underFloorSurcharge: 1500,
+  // Travel within Solnechnogorsk district, unloading, water, floor protection and cleanup:
+  // roughly 1.5–2 hours that do not depend on how many holes are drilled, so they are
+  // charged once per order instead of being hidden in every hole.
+  callOutFee: 3000,
+  // The smallest order total, call-out included. Competitors' minimums in the region
+  // are 6 000–9 000 ₽ plus mileage beyond the MKAD.
+  minOrderPrice: 5500,
+  // Covers setting up the rig at one hole and crown wear, so a shallow hole is not
+  // priced below the time it takes. Applies to the drilling part of a single hole.
+  minHolePrice: 800,
+  // Market-standard multipliers for work at height and in a crawlspace or pit.
+  heightMultiplier: 1.2,
+  underFloorMultiplier: 1.2,
   // Standard коронка covers depth up to this threshold. Beyond it we need to
   // add an удлинитель (extension rod), which costs extra time and a coupling,
   // so the rate per cm for the extra depth is higher.
   extendedDepthThresholdMm: 300,
   extendedDepthRateMultiplier: 1.25,
-  // Concrete and reinforced concrete are denser and wear coronkas faster than
-  // brick, so they carry an extra flat markup on top of the base rate.
-  hardMaterialSurchargeMultiplier: 1.2,
 }
 
-// Volume discount on the total order: more holes in one visit means less
-// setup/travel overhead per hole, so we pass part of that saving on.
+const formatRub = (value: number) => `${value.toLocaleString("ru-RU")} ₽`
+
+/** One sentence with the per-order terms, shared by the price page, FAQ, calculators and chat. */
+export const orderTermsText = `Выезд и подготовка по Солнечногорскому округу — ${formatRub(pricingConfig.callOutFee)} за заказ, минимальный заказ — ${formatRub(pricingConfig.minOrderPrice)} вместе с выездом.`
+
+// Volume discount on the drilling part of the order. The call-out fee already covers
+// travel, so the discount stays modest and only rewards real series.
 export const quantityDiscountTiers = [
-  { minQuantity: 20, percent: 15 },
-  { minQuantity: 10, percent: 10 },
-  { minQuantity: 5, percent: 5 },
+  { minQuantity: 20, percent: 10 },
+  { minQuantity: 10, percent: 5 },
 ] as const
+
+/** Discount tiers in ascending order as text: "5% от 10 отверстий, 10% от 20". */
+export const discountTermsText = [...quantityDiscountTiers].reverse().map((tier, index) => `${tier.percent}% от ${tier.minQuantity}${index === 0 ? " отверстий" : ""}`).join(", ")
 
 export function getQuantityDiscountPercent(quantity: number) {
   return quantityDiscountTiers.find((tier) => quantity >= tier.minQuantity)?.percent ?? 0
@@ -112,6 +135,27 @@ export function applyQuantityDiscount(subtotal: number, quantity: number) {
   const discountAmount = Math.round((subtotal * percent) / 100)
   return { percent, discountAmount, total: subtotal - discountAmount }
 }
+
+/**
+ * Turns the drilling subtotal of one visit into the amount the client pays: the quantity
+ * discount on drilling, the call-out fee once, and a top-up to the minimum order if needed.
+ */
+export function quoteOrder(drillingSubtotal: number, quantity: number) {
+  const discount = applyQuantityDiscount(drillingSubtotal, quantity)
+  const beforeMinimum = discount.total + pricingConfig.callOutFee
+  const minimumTopUp = Math.max(0, pricingConfig.minOrderPrice - beforeMinimum)
+  return {
+    subtotal: drillingSubtotal,
+    percent: discount.percent,
+    discountAmount: discount.discountAmount,
+    drilling: discount.total,
+    callOutFee: pricingConfig.callOutFee,
+    minimumTopUp,
+    total: beforeMinimum + minimumTopUp,
+  }
+}
+
+export type OrderQuote = ReturnType<typeof quoteOrder>
 
 /**
  * Returns the material's rate in rubles per centimeter for a diameter in millimeters.
@@ -131,9 +175,9 @@ export function getRatePerCm(diameterMm: number, material: MaterialKey) {
 }
 
 /**
- * Returns the rounded price in rubles for one hole, with diameter and depth in millimeters.
- * Applies the standard-depth minimum, extra-depth charge, hard-material multiplier,
- * and selected work-condition surcharges before any quantity discount.
+ * Returns the rounded drilling price in rubles for one hole, with diameter and depth in millimeters.
+ * Applies the per-hole minimum, the extra-depth charge and work-condition multipliers.
+ * The call-out fee, quantity discount and minimum order are added per order by `quoteOrder`.
  */
 export function calculateHolePrice({
   diameterMm,
@@ -157,11 +201,13 @@ export function calculateHolePrice({
   const extendedCost = extendedCm * ratePerCm * pricingConfig.extendedDepthRateMultiplier
   // Minimum price covers the standard-depth portion only — extra depth beyond
   // the threshold always adds on top, so it can't get absorbed by the floor.
-  const isHardMaterial = material === "concrete" || material === "reinforced"
-  const base = (Math.max(normalCost, pricingConfig.minHolePrice) + extendedCost) * (isHardMaterial ? pricingConfig.hardMaterialSurchargeMultiplier : 1)
-  const surcharge = (atHeight ? pricingConfig.heightSurcharge : 0) + (underFloor ? pricingConfig.underFloorSurcharge : 0)
-  return Math.round(base + surcharge)
+  const base = Math.max(normalCost, pricingConfig.minHolePrice) + extendedCost
+  const conditions = (atHeight ? pricingConfig.heightMultiplier : 1) * (underFloor ? pricingConfig.underFloorMultiplier : 1)
+  return Math.round(base * conditions)
 }
+
+/** Formats a multiplier such as 1.2 as a surcharge label: "+20%". */
+export const surchargeLabel = (multiplier: number) => `+${Math.round((multiplier - 1) * 100)}%`
 
 export const locations = ["Солнечногорск", "Андреевка", "Поварово", "Менделеево", "Лунёво", "Голубое", "Пешки", "Радумля", "Ржавки", "Брёхово", "Смирновка", "Алабушево"]
 
@@ -191,7 +237,7 @@ export const works = [
 ]
 
 export const faqs = [
-  ["Сколько стоит алмазное бурение?", `Рыночная стоимость начинается от 25 ₽ за сантиметр в кирпиче, от 30 ₽ в бетоне и от 40 ₽ в железобетоне. Минимальная стоимость одного отверстия — ${pricingConfig.minHolePrice.toLocaleString("ru-RU")} ₽ независимо от глубины. На глубине свыше ${(pricingConfig.extendedDepthThresholdMm / 10).toFixed(0)} см стандартной коронки не хватает и нужен удлинитель — цена за см на превышении выше в ${pricingConfig.extendedDepthRateMultiplier} раза. Отверстия на высоте и в подполе — доплата от ${pricingConfig.heightSurcharge.toLocaleString("ru-RU")} ₽. Точная цена зависит от диаметра, глубины и условий на объекте.`],
+  ["Сколько стоит алмазное бурение?", `Бурение — от ${lowestRates.brick} ₽ за сантиметр в кирпиче, от ${lowestRates.concrete} ₽ в бетоне и от ${lowestRates.reinforced} ₽ в железобетоне. ${orderTermsText} На глубине свыше ${(pricingConfig.extendedDepthThresholdMm / 10).toFixed(0)} см стандартной коронки не хватает и нужен удлинитель — цена за см на превышении выше в ${pricingConfig.extendedDepthRateMultiplier} раза. Работа на высоте — ${surchargeLabel(pricingConfig.heightMultiplier)}, в подполе — ${surchargeLabel(pricingConfig.underFloorMultiplier)} к стоимости бурения. Скидка за количество: ${discountTermsText}. Точная цена зависит от диаметра, глубины и условий на объекте.`],
   ["От чего зависит цена отверстия?", "От диаметра, материала, толщины конструкции, количества отверстий, работы на высоте или в подполе, условий доступа и расстояния до объекта."],
   ["Можно ли бурить железобетон с арматурой?", "Да. Алмазная коронка проходит бетон вместе с арматурой без постоянной ударной нагрузки."],
   ["Можно ли сделать отверстие в фундаменте?", "Да, бурим технологические отверстия и проходы под канализацию, воду и продухи в фундаментах."],

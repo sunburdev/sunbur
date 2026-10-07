@@ -3,15 +3,17 @@ import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage }
 import { z } from "zod"
 import { crownDiameters } from "@/lib/diameter-catalog"
 import {
-  applyQuantityDiscount,
   calculateHolePrice,
+  discountTermsText,
   faqs,
   locations,
   materialOptions,
+  orderTermsText,
   pricingConfig,
-  quantityDiscountTiers,
+  quoteOrder,
   services,
   site,
+  surchargeLabel,
   type MaterialKey,
 } from "@/lib/site-data"
 
@@ -44,11 +46,11 @@ const systemPrompt = `Тебя зовут Бит — ты ИИ-консульт�
 
 Диаметры коронок, с которыми работаем: ${crownDiameters.join(", ")} мм. Материалы: ${materialOptions.map((m) => m.label).join(", ")}.
 
-Минимальная стоимость одного отверстия — ${pricingConfig.minHolePrice} ₽. Доплата за работу на высоте — ${pricingConfig.heightSurcharge} ₽, в подполе — ${pricingConfig.underFloorSurcharge} ₽.
+${orderTermsText} Бурение одного отверстия — не меньше ${pricingConfig.minHolePrice} ₽. Работа на высоте — ${surchargeLabel(pricingConfig.heightMultiplier)}, в подполе — ${surchargeLabel(pricingConfig.underFloorMultiplier)} к стоимости бурения.
 
 Если глубина превышает ${pricingConfig.extendedDepthThresholdMm} мм, стандартной коронки не хватает и нужен удлинитель — стоимость каждого сантиметра глубины свыше ${pricingConfig.extendedDepthThresholdMm} мм увеличивается в ${pricingConfig.extendedDepthRateMultiplier} раза. Инструмент calculate_price уже учитывает это автоматически.
 
-Скидка за количество отверстий (инструмент calculate_price уже применяет её к totalRub): ${quantityDiscountTiers.slice().sort((a, b) => a.minQuantity - b.minQuantity).map((tier) => `от ${tier.minQuantity} шт. — ${tier.percent}%`).join(", ")}. Если клиент называет количество ниже ближайшего порога, можно вежливо упомянуть, сколько отверстий останется до скидки.
+Скидка за количество отверстий на стоимость бурения (инструмент calculate_price уже применяет её, а также выезд и минимальный заказ к totalRub): ${discountTermsText}. Если клиент называет количество ниже ближайшего порога, можно вежливо упомянуть, сколько отверстий останется до скидки.
 
 Работаем в населённых пунктах: ${locations.join(", ")}.
 
@@ -79,17 +81,18 @@ const tools = {
     }),
     execute: async ({ diameterMm, material, depthMm, quantity, atHeight, underFloor }) => {
       const pricePerHole = calculateHolePrice({ diameterMm, material, depthMm, atHeight, underFloor })
-      const subtotalRub = pricePerHole * quantity
-      const discount = applyQuantityDiscount(subtotalRub, quantity)
+      const quote = quoteOrder(pricePerHole * quantity, quantity)
       return {
         pricePerHoleRub: pricePerHole,
         quantity,
-        subtotalRub,
-        discountPercent: discount.percent,
-        discountAmountRub: discount.discountAmount,
-        totalRub: discount.total,
-        minHolePriceRub: pricingConfig.minHolePrice,
-        note: "Ориентировочная стоимость с учётом скидки за количество (если применима). Точная цена подтверждается мастером по фото объекта и условиям доступа.",
+        subtotalRub: quote.subtotal,
+        discountPercent: quote.percent,
+        discountAmountRub: quote.discountAmount,
+        callOutFeeRub: quote.callOutFee,
+        minimumTopUpRub: quote.minimumTopUp,
+        minOrderPriceRub: pricingConfig.minOrderPrice,
+        totalRub: quote.total,
+        note: "Ориентировочная стоимость заказа: бурение со скидкой за количество (если применима) и выезд по Солнечногорскому округу. Точная цена подтверждается мастером по фото объекта и условиям доступа.",
       }
     },
   }),

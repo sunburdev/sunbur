@@ -12,7 +12,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } })
 
 const { DEFAULT_FOUNDATION, calculateVentilation, dragContourWall, getFoundationGeometry, foundationInputSchema, manualVentWarnings, migrateFoundationProjectV1, summarizeManualVents, templateContour, validateContour, walkContour } = await import("../lib/vent-calculator.ts")
-const { calculateHolePrice } = await import("../lib/site-data.ts")
+const { calculateHolePrice, quoteOrder } = await import("../lib/site-data.ts")
 
 test("rectangle, L and U footprints exclude cutouts and clip partitions", () => {
   assert.equal(getFoundationGeometry(DEFAULT_FOUNDATION).area, 80)
@@ -37,6 +37,7 @@ test("external free area accounts for grille, and recommendation minimizes feasi
     if (variant.feasible) assert.ok(variant.freeArea >= result.requiredArea - 1e-8)
     assert.equal(variant.pricePerHole, calculateHolePrice({ diameterMm: variant.diameterMm, material: "concrete", depthMm: 400, atHeight: false, underFloor: false }))
     assert.equal(variant.totalPrice, variant.totalCount * variant.pricePerHole)
+    assert.equal(variant.finalPrice, quoteOrder(variant.totalPrice, variant.totalCount).total)
   }
   const selected = result.variants.find(variant => variant.id === result.recommendedId)
   assert.equal(selected.totalPrice, Math.min(...result.variants.filter(variant => variant.feasible).map(variant => variant.totalPrice)))
